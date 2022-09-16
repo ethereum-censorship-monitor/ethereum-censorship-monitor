@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "ethereum-censorship-monitor"
+version = "0.1.0"
+description = "A tool to monitor the Ethereum blockchain for censorship by block producers"
+authors = ["Frederik Lührs <luehrs.fred@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+eth-typing = "^3.2.0"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
