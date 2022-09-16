@@ -8,10 +8,27 @@ import Stats from "./routes/Stats.vue";
 import "./style.css";
 
 const routes = [
-  { path: "/", component: Stats },
-  { path: "/blocks", component: Blocks },
-  { path: "/transactions", component: Transactions },
-  { path: "/validators", component: Validators },
+  { path: "/", name: "stats", component: Stats, meta: { title: "Stats" } },
+  {
+    path: "/blocks",
+    name: "blocks",
+    component: Blocks,
+    meta: { title: "Blocks" },
+  },
+  {
+    path: "/transactions",
+    name: "transactions",
+    component: Transactions,
+    meta: { title: "Transactions" },
+  },
+  {
+    path: "/validators",
+    name: "validators",
+    component: Validators,
+    meta: {
+      title: "Validators",
+    },
+  },
 ];
 
 const router = VueRouter.createRouter({

@@ -1,10 +1,15 @@
 <template>
-  <h1>Ethereum Censorship Monitor</h1>
-  <p>
-    <router-link to="/">Stats</router-link>
-    <router-link to="/transactions">Transactions</router-link>
-    <router-link to="/blocks">Blocks</router-link>
-    <router-link to="/validators">Validators</router-link>
-  </p>
-  <router-view></router-view>
+  <div class="min-h-screen bg-slate-800 text-slate-100 font-sans">
+    <NavBar />
+    <router-view></router-view>
+  </div>
 </template>
+
+<script>
+import NavBar from "./components/NavBar.vue";
+
+export default {
+  name: "App",
+  components: { NavBar },
+};
+</script>
