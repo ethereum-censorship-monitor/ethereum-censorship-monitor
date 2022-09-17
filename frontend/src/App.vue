@@ -1,7 +1,9 @@
 <template>
   <div class="min-h-screen bg-slate-800 text-slate-100 font-sans">
     <NavBar />
-    <router-view></router-view>
+    <div class="container mx-auto">
+      <router-view></router-view>
+    </div>
   </div>
 </template>
 
