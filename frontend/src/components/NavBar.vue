@@ -29,7 +29,7 @@ export default {
   name: "NavBar",
   computed: {
     routes() {
-      const routeNames = ["stats", "blocks", "transactions", "validators"];
+      const routeNames = ["overview", "blocks", "transactions", "validators"];
       const routes = [];
       for (let i = 0; i < routeNames.length; i++) {
         const route = this.$router.resolve({ name: routeNames[i] });
