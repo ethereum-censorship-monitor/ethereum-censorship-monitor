@@ -1,4 +1,6 @@
+import asyncio
 from aiohttp import web
+import aiohttp_cors
 
 async def handle_stats(request):
     data = {
@@ -33,15 +35,25 @@ async def handle_validators(request):
     return web.json_response(data)
 
 app = web.Application()
-app.add_routes([
+cors = aiohttp_cors.setup(app, defaults={"*": aiohttp_cors.ResourceOptions(
+    expose_headers="*",
+    allow_headers="*",
+    max_age=3600,
+)})
+routes = [
     web.get("/v1/stats", handle_stats),
     web.get("/v1/blocks", handle_blocks),
     web.get("/v1/transactions", handle_transactions),
     web.get("/v1/validators", handle_validators),
-])
+]
+app.add_routes(routes)
+for route in app.router.routes():
+    cors.add(route)
 
 async def serve(host, port):
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, host, port)
     await site.start()
+    while True:
+        await asyncio.sleep(3600)
