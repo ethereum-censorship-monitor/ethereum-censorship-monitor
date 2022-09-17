@@ -1,7 +1,8 @@
 CREATE TABLE blocks (
     block_number       INTEGER,
     validator          INTEGER,
-    hash               TEXT
+    hash               TEXT,
+    timestamp          INTEGER
 );
 
 /* INSERT INTO blocks DEFAULT VALUES; */
