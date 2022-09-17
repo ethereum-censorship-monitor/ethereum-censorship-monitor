@@ -1,11 +1,14 @@
 <template>
-  <h1 class="mt-12 mb-12 text-center text-4xl font-bold">
-    Recent <span class="text-green-300">validators</span> who
-    <span class="text-red-300">censored</span> transactions
-  </h1>
-  <div class="mx-auto">
+  <div v-if="data.length > 0">
+    <h1 class="mt-12 mb-12 text-center text-4xl font-bold">
+      Recent <span class="text-green-300">validators</span> who
+      <span class="text-red-300">censored</span> transactions
+    </h1>
     <Table :header="header" :data="data" />
   </div>
+  <p v-else class="mt-12 text-center text-4xl font-bold text-green-300">
+    No censoring validators detected
+  </p>
 </template>
 
 <script>
