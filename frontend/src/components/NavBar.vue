@@ -10,7 +10,7 @@
         <ul class="flex flex-row h-full justify-end gap-4 text-xl">
           <router-link
             tag="li"
-            v-for="route in $router.getRoutes()"
+            v-for="route in routes"
             :key="route.path"
             class="border-b-2 border-transparent hover:border-current flex flex-col justify-center"
             :class="{ 'border-current': this.$route.name === route.name }"
@@ -27,5 +27,16 @@
 <script>
 export default {
   name: "NavBar",
+  computed: {
+    routes() {
+      const routeNames = ["stats", "blocks", "transactions", "validators"];
+      const routes = [];
+      for (let i = 0; i < routeNames.length; i++) {
+        const route = this.$router.resolve({ name: routeNames[i] });
+        routes.push(route);
+      }
+      return routes;
+    },
+  },
 };
 </script>
