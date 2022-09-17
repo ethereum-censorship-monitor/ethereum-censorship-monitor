@@ -1,12 +1,13 @@
 <template>
-  <div v-if="data.length > 0">
-    <h1 class="mt-12 mb-12 text-center text-4xl font-bold">
+  <p v-if="data === null" class="text-center">loading...</p>
+  <div v-else-if="data.length > 0">
+    <h1 class="mb-12 text-center text-4xl font-bold">
       Recent <span class="text-green-300">blocks</span> that
       <span class="text-red-300">censored</span> transactions
     </h1>
     <Table :header="header" :data="data" />
   </div>
-  <p v-else class="mt-12 text-center text-4xl font-bold text-green-300">
+  <p v-else class="text-center text-4xl font-bold text-green-300">
     No censoring blocks detected
   </p>
 </template>
@@ -17,27 +18,29 @@ import Table from "../components/Table.vue";
 export default {
   name: "Blocks",
   components: { Table },
+  mounted() {
+    this.fetchData();
+  },
   data() {
     return {
       header: ["Number", "Validator", "Hash"],
-      data: [
-        [
-          "15552401",
-          "329690",
-          "0x227a39912cfac898cf2a03671b5395150f62daf676ea7228807db2ebc7978b36",
-        ],
-        [
-          "15552401",
-          "329690",
-          "0x227a39912cfac898cf2a03671b5395150f62daf676ea7228807db2ebc7978b36",
-        ],
-        [
-          "15552401",
-          "329690",
-          "0x227a39912cfac898cf2a03671b5395150f62daf676ea7228807db2ebc7978b36",
-        ],
-      ],
+      data: null,
     };
+  },
+
+  methods: {
+    async fetchData() {
+      const url = new URL("/v1/blocks", import.meta.env.VITE_REST_API_ENDPOINT);
+      const response = await fetch(url);
+      const requestData = await response.json();
+      let data = [];
+      for (let i = 0; i < requestData.length; i++) {
+        const requestRow = requestData[i];
+        const row = [requestRow.number, requestRow.validator, requestRow.hash];
+        data.push(row);
+      }
+      this.data = data;
+    },
   },
 };
 </script>
