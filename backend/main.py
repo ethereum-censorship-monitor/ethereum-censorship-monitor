@@ -18,7 +18,6 @@ def initialize_database():
     database = Database(DB_PATH, SCHEMA_PATH, allow_create=True)
     return database
 
-
 async def fetch_new_heads(rpc,on_new_block):
     async with connect("wss://mainnet.infura.io/ws/v3/9d7e06efd1f04cc9b6c9b36e60cdd80a") as ws:
         await ws.send(json.dumps({"id": 1, "method": "eth_subscribe", "params": ["newHeads"]}))
@@ -31,6 +30,7 @@ async def fetch_new_heads(rpc,on_new_block):
             session = aiohttp.ClientSession()
             result = await session.put(rpc, data={"jsonrpc":"2.0","method":"eth_getBlockByHash","params": [header,True],"id":1})
             on_new_block(result)
+
 async def fetch_new_transactions(on_new_transaction):
     async with connect("wss://mainnet.infura.io/ws/v3/9d7e06efd1f04cc9b6c9b36e60cdd80a") as ws:
         await ws.send(json.dumps({"id": 1, "method": "eth_subscribe", "params": ["newPendingTransactions"]}))
@@ -46,16 +46,17 @@ async def fetch_new_transactions(on_new_transaction):
 @click.option("--rest-host", type=str, required=True, help="Host of the REST API")
 @click.option("--rest-port", type=int, required=True, help="Port of the REST API")
 def main(rpc, rest_host, rest_port):
+    database = initialize_database()
+
     loop = asyncio.get_event_loop()
     loop.run_until_complete(asyncio.gather(
-        run_monitor(rpc),
-        api.serve(rest_host, rest_port),
+        run_monitor(rpc, database),
+        api.serve(rest_host, rest_port, database),
     ))
 
-async def run_monitor(rpc):
+async def run_monitor(rpc, database):
     web3 = Web3(HTTPProvider(rpc))
     mempool = Mempool(web3, 5)
-    database = initialize_database()
     loop = asyncio.get_event_loop()
     session = aiohttp.ClientSession()
     data = {"jsonrpc": "2.0", "method": "eth_getBlockByNumber", "params": ["latest", True],"id": 1}

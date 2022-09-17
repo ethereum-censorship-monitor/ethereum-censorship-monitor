@@ -40,7 +40,7 @@ export default {
       let data = [];
       for (let i = 0; i < requestData.length; i++) {
         const requestRow = requestData[i];
-        const row = [requestRow.validator, requestRow.lastCensoredBlock];
+        const row = [requestRow.validator, requestRow.last_censored_block];
         data.push(row);
       }
       this.data = data;

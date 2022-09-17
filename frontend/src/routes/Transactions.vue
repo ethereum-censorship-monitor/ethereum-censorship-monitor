@@ -40,7 +40,7 @@ export default {
       let data = [];
       for (let i = 0; i < requestData.length; i++) {
         const requestRow = requestData[i];
-        const row = [requestRow.timestamp, requestRow.hash];
+        const row = [requestRow.first_seen, requestRow.hash];
         data.push(row);
       }
       this.data = data;

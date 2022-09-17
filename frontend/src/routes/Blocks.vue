@@ -36,7 +36,11 @@ export default {
       let data = [];
       for (let i = 0; i < requestData.length; i++) {
         const requestRow = requestData[i];
-        const row = [requestRow.number, requestRow.validator, requestRow.hash];
+        const row = [
+          requestRow.block_number,
+          requestRow.validator,
+          requestRow.hash,
+        ];
         data.push(row);
       }
       this.data = data;
