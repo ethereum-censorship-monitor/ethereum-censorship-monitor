@@ -4,7 +4,7 @@
       <div class="h-full mx-8 flex flex-row justify-between">
         <div class="flex flex-col justify-center">
           <p class="text-2xl text-green-300 font-bold">
-            Ethereum Censorship Monitor
+            Ethereum <span class="text-red-300">Censorship</span> Monitor
           </p>
         </div>
         <ul class="flex flex-row h-full justify-end gap-4 text-xl">
@@ -27,16 +27,5 @@
 <script>
 export default {
   name: "NavBar",
-  data() {
-    console.log(this.$route.name);
-    return {
-      routes: [
-        { title: "Stats", route: "stats" },
-        { title: "Blocks", route: "blocks" },
-        { title: "Transactions", route: "transactions" },
-        { title: "Validators", route: "validators" },
-      ],
-    };
-  },
 };
 </script>

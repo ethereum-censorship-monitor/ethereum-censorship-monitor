@@ -1,3 +1,28 @@
 <template>
-  <h2>Validators</h2>
+  <h1 class="mt-12 mb-12 text-center text-4xl font-bold">
+    Recent <span class="text-green-300">validators</span> who
+    <span class="text-red-300">censored</span> transactions
+  </h1>
+  <div class="mx-auto">
+    <Table :header="header" :data="data" />
+  </div>
 </template>
+
+<script>
+import Table from "../components/Table.vue";
+
+export default {
+  name: "Validators",
+  components: { Table },
+  data() {
+    return {
+      header: ["Index", "Censored transactions"],
+      data: [
+        [33681, 12],
+        [123, 3],
+        [39189, 1],
+      ],
+    };
+  },
+};
+</script>
