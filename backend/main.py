@@ -9,6 +9,7 @@ from transaction import Chain
 from mempool import Mempool
 from db.database import Database
 from websockets import connect
+import api
 SCHEMA_PATH = "./backend/db/data/schema.sql"
 DB_PATH = "./backend/db/data/ethereum-censorship-monitor.db"
 
@@ -42,9 +43,14 @@ async def fetch_new_transactions(on_new_transaction):
 
 @click.command()
 @click.option("--rpc", type=str, required=True, help="Ethereum RPC endpoint. Required to be a GETH client.")
-def main(rpc):
+@click.option("--rest-host", type=str, required=True, help="Host of the REST API")
+@click.option("--rest-port", type=int, required=True, help="Port of the REST API")
+def main(rpc, rest_host, rest_port):
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(run_monitor(rpc))
+    loop.run_until_complete(asyncio.gather(
+        run_monitor(rpc),
+        api.serve(rest_host, rest_port),
+    ))
 
 async def run_monitor(rpc):
     web3 = Web3(HTTPProvider(rpc))
