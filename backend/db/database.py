@@ -102,12 +102,8 @@ class Database:
         values = ", ".join(":" + col_name for col_name in fields_by_colname)
         return self._execute_write(f"INSERT INTO {table_name}({cols}) VALUES ({values})", fields_by_colname)
 
-    def select(self, table_name: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        if limit is None:
-            limit_part = ""
-        else:
-            limit_part = f"LIMIT {limit}"
-        cursor = self._execute_read(f"SELECT * FROM {table_name}" + limit_part)
+    def select(self, query: str) -> List[Dict[str, Any]]:
+        cursor = self._execute_read(query)
         rows = cursor.fetchall()
         result = []
         for row in rows:
