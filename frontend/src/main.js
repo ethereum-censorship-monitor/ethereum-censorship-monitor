@@ -4,11 +4,16 @@ import App from "./App.vue";
 import Blocks from "./routes/Blocks.vue";
 import Transactions from "./routes/Transactions.vue";
 import Validators from "./routes/Validators.vue";
-import Stats from "./routes/Stats.vue";
+import Overview from "./routes/Overview.vue";
 import "./style.css";
 
 const routes = [
-  { path: "/", name: "stats", component: Stats, meta: { title: "Stats" } },
+  {
+    path: "/",
+    name: "overview",
+    component: Overview,
+    meta: { title: "Overview" },
+  },
   {
     path: "/blocks",
     name: "blocks",
