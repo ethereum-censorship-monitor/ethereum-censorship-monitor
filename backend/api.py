@@ -1,12 +1,23 @@
 import asyncio
 from aiohttp import web
 import aiohttp_cors
+import time
 
 async def handle_stats(request):
+    current_timestamp = int(time.time())
+    cutoff_timestamp = current_timestamp - 24 * 60 * 60
+    num_transactions_query = f"SELECT count(*) FROM transactions WHERE first_seen > {cutoff_timestamp}"
+    num_blocks_query = f"SELECT count(*) FROM blocks WHERE timestamp > {cutoff_timestamp}"
+    num_validators_query = f"SELECT count(DISTINCT validator) FROM blocks WHERE timestamp > {cutoff_timestamp}"
+
+    db = request.app["database"]
+    num_blocks = db.select(num_blocks_query)[0]["count(*)"]
+    num_transactions = db.select(num_transactions_query)[0]["count(*)"]
+    num_validators = db.select(num_validators_query)[0]["count(DISTINCT validator)"]
     data = {
-        "numBlocks": 0,
-        "numTransactions": 1,
-        "numValidators": 2,
+        "num_blocks": num_blocks,
+        "num_transactions": num_transactions,
+        "num_validators": num_validators,
     }
     return web.json_response(data)
 

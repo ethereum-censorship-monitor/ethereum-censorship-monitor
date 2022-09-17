@@ -12,16 +12,19 @@ def populate_database(db):
             "block_number": 1000000,
             "validator": 329690,
             "hash": "0xa11f10fa987b8e410317285e479917d0d47c2e0c9ca7c85ccb341d672a474b8b",
+            "timestamp": 1663453521,
         },
         {
             "block_number": 1001000,
             "validator": 123456,
             "hash": "0x0b51c8d0ba5dd9e9f9773a241f6a0c20bdb58d8e37424b40da6196d99859ea7e",
+            "timestamp": 1663453302,
         },
         {
             "block_number": 15555098,
             "validator": 229690,
             "hash": "0x1106290f5fff61aa181e26d9fcd985fed8404d35de2d448adb428a4501628cb3",
+            "timestamp": 1663453781,
         },
     ]
     transactions = [
