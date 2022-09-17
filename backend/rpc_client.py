@@ -8,14 +8,13 @@ from websockets import connect
 
 class RPCClient:
 
-    def __init__(self, rpc, ws_url, on_new_block, on_new_transaction, on_mempool):
+    def __init__(self, rpc, ws_url, chain):
         self.rpc = rpc
         self.ws_url = ws_url
-        self.on_new_block = on_new_block
-        self.on_new_transaction = on_new_transaction
-        self.on_mempool = on_mempool
+        self.chain = chain
         self.session = ClientSession()
         self.new_block_event = asyncio.Event()
+        self.chain.rpc_client = self
 
 
 
@@ -31,7 +30,7 @@ class RPCClient:
                 block = await self.get_block(header["number"], True)
 
                 self.new_block_event.set()
-                self.on_new_block(header, block)
+                await self.chain.new_block(header, block)
 
     async def fetch_new_transactions(self):
         async with connect(self.ws_url) as ws:
@@ -40,7 +39,7 @@ class RPCClient:
 
             while True:
                 response = json.loads(await ws.recv())
-                self.on_new_transaction(response["params"]["result"], time.time())
+                self.chain.acknowledge_transaction(response["params"]["result"], int(time.time()))
 
     async def get_block(self, number, transaction_content=False):
         result = None
@@ -51,6 +50,11 @@ class RPCClient:
             if result is None:
                 print(f"getBlock({int(number, 0)}) failed")
         return result
+
+    async def get_transaction_count(self, address):
+        data = {"jsonrpc": "2.0", "method": "eth_getTransactionCount", "params": [address, "latest"], "id": 1}
+        response = await self.session.post(self.rpc, json=data)
+        return  (await response.json())["result"]
 
     async def fetch_mempool(self):
         while True:
@@ -63,7 +67,8 @@ class RPCClient:
             for transactions in mempool["pending"].values():
                 counter += len(transactions)
             print(f"Mempool size: {counter}")
-            self.on_mempool(mempool)
+
+            self.chain.on_mempool(mempool)
 
     def start(self):
         loop = asyncio.get_event_loop()
