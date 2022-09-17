@@ -6,6 +6,45 @@ import logging
 
 log = logging.getLogger(__name__)
 
+def populate_database(db):
+    blocks = [
+        {
+            "block_number": 1000000,
+            "validator": 329690,
+            "hash": "0xa11f10fa987b8e410317285e479917d0d47c2e0c9ca7c85ccb341d672a474b8b",
+        },
+        {
+            "block_number": 1001000,
+            "validator": 123456,
+            "hash": "0x0b51c8d0ba5dd9e9f9773a241f6a0c20bdb58d8e37424b40da6196d99859ea7e",
+        },
+        {
+            "block_number": 15555098,
+            "validator": 229690,
+            "hash": "0x1106290f5fff61aa181e26d9fcd985fed8404d35de2d448adb428a4501628cb3",
+        },
+    ]
+    transactions = [
+        {
+            "hash": "0x704ee73a7321961a12004b660ef943a1140079874b08d8f739658dc6c4b36241",
+            "first_seen": 1663394442,
+            "sender": "0x388c818ca8b9251b393131c08a736a67ccb19297",
+        },
+        {
+            "hash": "0x66e184c04b58a073a5b15ffb4d5a77e66f20f484ec3071a72edabf70bbe4c030",
+            "first_seen": 1663394402,
+            "sender": "0xebec795c9c8bbd61ffc14a6662944748f299cacf",
+        },
+        {
+            "hash": "0xbe4ee7bd5db427d3d213951c9b99eaa29b714dc161e3ca524816ac987b6874d5",
+            "first_seen": 1663394442,
+            "sender": "0x388c818ca8b9251b393131c08a736a67ccb19297",
+        },
+    ]
+    for block in blocks:
+        db.insert("blocks", block)
+    for transaction in transactions:
+        db.insert("transactions", transaction)
 
 class Database:
     def __init__(self, filename: str, schema_filename: str, allow_create: bool = False):
@@ -44,6 +83,7 @@ class Database:
     def create_new_database(self, schema_filename) -> None:
         with open(schema_filename) as schema_file:
             result = self.write_conn.executescript(schema_file.read())
+        populate_database(self)
 
     def _execute(self, conn, command, content=None):
         if content is None:
