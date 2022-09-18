@@ -11,8 +11,8 @@ SCHEMA_PATH = "./backend/db/data/schema.sql"
 DB_PATH = "./backend/db/data/ethereum-censorship-monitor.db"
 
 
-def initialize_database():
-    database = Database(DB_PATH, SCHEMA_PATH, allow_create=True)
+def initialize_database(db_dir):
+    database = Database(db_dir + "/ethereum_censorship_monitor.db", db_dir + "/schema.sql", allow_create=True)
     return database
 
 
@@ -20,8 +20,9 @@ def initialize_database():
 @click.option("--rpc", type=str, required=True, help="Ethereum RPC endpoint. Required to be a GETH client.")
 @click.option("--rest-host", type=str, required=True, help="Host of the REST API")
 @click.option("--rest-port", type=int, required=True, help="Port of the REST API")
-def main(rpc, rest_host, rest_port):
-    database = initialize_database()
+@click.option("--db-dir", type=str, required=True, help="Path to the directory containing the db schema and db")
+def main(rpc, rest_host, rest_port, db_dir):
+    database = initialize_database(db_dir)
     loop = asyncio.get_event_loop()
     run_monitor(rpc, database)
     loop.run_until_complete(api.serve(rest_host, rest_port, database))
