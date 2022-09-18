@@ -25,7 +25,7 @@ export default {
   components: { Table },
   data() {
     return {
-      header: ["Timestamp", "Hash"],
+      header: ["First seen", "Hash"],
       data: null,
     };
   },
