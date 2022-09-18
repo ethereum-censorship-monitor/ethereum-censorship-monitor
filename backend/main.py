@@ -23,7 +23,7 @@ def initialize_database():
 def main(rpc, rest_host, rest_port):
     database = initialize_database()
     loop = asyncio.get_event_loop()
-    run_monitor(rpc)
+    run_monitor(rpc, database)
     loop.run_until_complete(api.serve(rest_host, rest_port, database))
     loop.run_forever()
 

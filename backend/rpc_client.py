@@ -5,6 +5,8 @@ import time
 from aiohttp import ClientSession
 from websockets import connect
 
+from util import hex_to_int
+
 
 class RPCClient:
 
@@ -15,9 +17,6 @@ class RPCClient:
         self.session = ClientSession()
         self.new_block_event = asyncio.Event()
         self.chain.rpc_client = self
-
-
-
 
     async def fetch_new_heads(self):
         async with connect(self.ws_url) as ws:
@@ -30,7 +29,7 @@ class RPCClient:
                 block = await self.get_block(header["number"], True)
 
                 self.new_block_event.set()
-                await self.chain.new_block(header, block)
+                await self.chain.new_block(block)
 
     async def fetch_new_transactions(self):
         async with connect(self.ws_url) as ws:
@@ -54,7 +53,7 @@ class RPCClient:
     async def get_transaction_count(self, address):
         data = {"jsonrpc": "2.0", "method": "eth_getTransactionCount", "params": [address, "latest"], "id": 1}
         response = await self.session.post(self.rpc, json=data)
-        return  (await response.json())["result"]
+        return hex_to_int((await response.json())["result"])
 
     async def fetch_mempool(self):
         while True:
