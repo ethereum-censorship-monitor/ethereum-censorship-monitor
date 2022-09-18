@@ -5,7 +5,7 @@
       Recent <span class="text-green-300">validators</span> who
       <span class="text-red-300">censored</span> transactions
     </h1>
-    <Table :header="header" :data="data" />
+    <Table :header="header" :data="data" :types="types" />
   </div>
   <p v-else class="mt-12 text-center text-4xl font-bold text-green-300">
     No censoring validators detected
@@ -22,6 +22,7 @@ export default {
     return {
       header: ["Address", "Last censored block"],
       data: null,
+      types: ["address", "block"],
     };
   },
 

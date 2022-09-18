@@ -5,7 +5,7 @@
       Recent <span class="text-green-300">blocks</span> that
       <span class="text-red-300">censored</span> transactions
     </h1>
-    <Table :header="header" :data="data" />
+    <Table :header="header" :data="data" :types="types" />
   </div>
   <p v-else class="text-center text-4xl font-bold text-green-300">
     No censoring blocks detected
@@ -25,6 +25,7 @@ export default {
     return {
       header: ["Number", "Validator", "Hash"],
       data: null,
+      types: ["", "address", "block"],
     };
   },
 

@@ -5,7 +5,7 @@
       Recently <span class="text-red-300">censored </span>
       <span class="text-green-300">transactions</span>
     </h1>
-    <Table :header="header" :data="data" />
+    <Table :header="header" :data="data" :types="types" />
   </div>
   <p v-else class="mt-12 text-center text-4xl font-bold text-green-300">
     No censored transactions detected
@@ -27,6 +27,7 @@ export default {
     return {
       header: ["First seen", "Hash"],
       data: null,
+      types: ["", "tx"],
     };
   },
 
