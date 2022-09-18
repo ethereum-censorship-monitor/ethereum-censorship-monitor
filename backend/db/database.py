@@ -86,7 +86,6 @@ class Database:
     def create_new_database(self, schema_filename) -> None:
         with open(schema_filename) as schema_file:
             result = self.write_conn.executescript(schema_file.read())
-        populate_database(self)
 
     def _execute(self, conn, command, content=None):
         if content is None:
