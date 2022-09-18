@@ -103,7 +103,7 @@ class Database:
     def insert(self, table_name: str, fields_by_colname: Dict[str, Any]) -> sqlite3.Cursor:
         cols = ", ".join(fields_by_colname.keys())
         values = ", ".join(":" + col_name for col_name in fields_by_colname)
-        return self._execute_write(f"INSERT INTO {table_name}({cols}) VALUES ({values})", fields_by_colname)
+        return self._execute_write(f"INSERT OR IGNORE INTO {table_name}({cols}) VALUES ({values})", fields_by_colname)
 
     def select(self, query: str) -> List[Dict[str, Any]]:
         cursor = self._execute_read(query)
