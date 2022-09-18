@@ -93,7 +93,7 @@ class Chain:
                 print(f"CENSORED TRANSACTION FOUND: {transaction.hash}, seen: {transaction.timestamp}")
                 self.db.insert("blocks", {
                     "block_number": block.number,
-                    "validator": 0,
+                    "validator": block.miner,
                     "hash": block.hash,
                     "timestamp": block.timestamp,
                 })
@@ -156,13 +156,14 @@ class TransactionType2(TransactionType0):
 
 
 class Block:
-    def __init__(self, number, base_fee_per_gas, gas_limit, gas_used, timestamp, transactions, hash, *args, **kwargs):
+    def __init__(self, number, base_fee_per_gas, gas_limit, gas_used, timestamp, transactions, hash, miner, *args, **kwargs):
         self.number = hex_to_int(number)
         self.hash = hash
         self.base_fee_per_gas = hex_to_int(base_fee_per_gas)
         self.gas_limit = hex_to_int(gas_limit)
         self.gas_used = hex_to_int(gas_used)
         self.timestamp = hex_to_int(timestamp)
+        self.miner = miner
         self.transactions = [
             TransactionType2.from_dict(transaction_data, self.timestamp) if hex_to_int(transaction_data["type"]) == 2 else
             TransactionType0.from_dict(transaction_data, self.timestamp)

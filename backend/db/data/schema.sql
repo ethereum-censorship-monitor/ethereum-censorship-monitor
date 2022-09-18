@@ -1,11 +1,9 @@
 CREATE TABLE blocks (
     block_number       INTEGER,
-    validator          INTEGER,
+    validator          TEXT,
     hash               TEXT,
     timestamp          INTEGER
 );
-
-/* INSERT INTO blocks DEFAULT VALUES; */
 
 CREATE UNIQUE INDEX unique_block_number ON blocks(block_number);
 

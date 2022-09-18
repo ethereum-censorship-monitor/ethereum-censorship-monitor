@@ -10,19 +10,19 @@ def populate_database(db):
     blocks = [
         {
             "block_number": 1000000,
-            "validator": 329690,
+            "validator": "0xb64a30399f7f6b0c154c2e7af0a3ec7b0a5b131a",
             "hash": "0xa11f10fa987b8e410317285e479917d0d47c2e0c9ca7c85ccb341d672a474b8b",
             "timestamp": 1663453521,
         },
         {
             "block_number": 1001000,
-            "validator": 123456,
+            "validator": "0x5e9c7b76c14635009b8fc3e58b595c357215a184",
             "hash": "0x0b51c8d0ba5dd9e9f9773a241f6a0c20bdb58d8e37424b40da6196d99859ea7e",
             "timestamp": 1663453302,
         },
         {
             "block_number": 15555098,
-            "validator": 229690,
+            "validator": "0xb64a30399f7F6b0C154c2E7Af0a3ec7B0A5b131a",
             "hash": "0x1106290f5fff61aa181e26d9fcd985fed8404d35de2d448adb428a4501628cb3",
             "timestamp": 1663453781,
         },

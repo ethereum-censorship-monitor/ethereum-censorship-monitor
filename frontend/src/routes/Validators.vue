@@ -20,7 +20,7 @@ export default {
   components: { Table },
   data() {
     return {
-      header: ["Index", "Last censored block"],
+      header: ["Address", "Last censored block"],
       data: null,
     };
   },
