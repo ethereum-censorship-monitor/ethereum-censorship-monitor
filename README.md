@@ -21,6 +21,11 @@ in the mempool):
 
 In all other cases, the monitor claims the proposer of the block has censored the transaction.
 
+The following diagram illustrates how transactions are analyzed when a new block arrived
+
+![censorship_with_background](https://user-images.githubusercontent.com/10088275/190893936-2d438299-3830-4fec-bc35-316ef7df2062.png)
+
+
 ## Usage
 
 Install and run the background with the following commands, to be executed in the root of the
