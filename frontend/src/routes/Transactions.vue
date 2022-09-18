@@ -15,6 +15,11 @@
 <script>
 import Table from "../components/Table.vue";
 
+function formatTimestamp(timestamp) {
+  const date = new Date(timestamp * 1000);
+  return date.toUTCString();
+}
+
 export default {
   name: "Transactions",
   components: { Table },
@@ -40,7 +45,7 @@ export default {
       let data = [];
       for (let i = 0; i < requestData.length; i++) {
         const requestRow = requestData[i];
-        const row = [requestRow.first_seen, requestRow.hash];
+        const row = [formatTimestamp(requestRow.first_seen), requestRow.hash];
         data.push(row);
       }
       this.data = data;
