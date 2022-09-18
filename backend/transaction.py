@@ -6,12 +6,13 @@ from util import hex_to_int
 
 class Chain:
 
-    def __init__(self):
+    def __init__(self, db):
         self.pending_transactions = dict()
         self.nonces = dict()
         self.timestamps = dict()
         self.latest_block = None
         self.rpc_client = None
+        self.db = db
 
     def acknowledge_transaction(self, tx_hash, timestamp):
         self.timestamps[tx_hash] = timestamp
@@ -90,6 +91,17 @@ class Chain:
 
             if self.nonces[address] == transaction.nonce:
                 print(f"CENSORED TRANSACTION FOUND: {transaction.hash}, seen: {transaction.timestamp}")
+                self.db.insert("blocks", {
+                    "block_number": block.number,
+                    "validator": 0,
+                    "hash": block.hash,
+                    "timestamp": block.timestamp,
+                })
+                self.db.insert("transactions", {
+                    "hash": transaction.hash,
+                    "first_seen": transaction.timestamp,
+                    "sender": transaction.sender,
+                })
                 transaction.censored_blocks.append(block.number)
 
 
@@ -144,8 +156,9 @@ class TransactionType2(TransactionType0):
 
 
 class Block:
-    def __init__(self, number, base_fee_per_gas, gas_limit, gas_used, timestamp, transactions, *args, **kwargs):
+    def __init__(self, number, base_fee_per_gas, gas_limit, gas_used, timestamp, transactions, hash, *args, **kwargs):
         self.number = hex_to_int(number)
+        self.hash = hash
         self.base_fee_per_gas = hex_to_int(base_fee_per_gas)
         self.gas_limit = hex_to_int(gas_limit)
         self.gas_used = hex_to_int(gas_used)

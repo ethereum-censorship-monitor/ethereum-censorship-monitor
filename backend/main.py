@@ -29,7 +29,7 @@ def main(rpc, rest_host, rest_port):
 
 
 def run_monitor(rpc, database):
-    chain = Chain()
+    chain = Chain(database)
     rpc_client = RPCClient(rpc, "ws://1.geth.mainnet.ethnodes.brainbot.com:8546", chain)
     rpc_client.start()
 
