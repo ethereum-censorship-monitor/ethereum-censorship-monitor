@@ -20,9 +20,9 @@
         In the past 24h,
         <span v-if="stats.numBlocks > 0">
           at least
-          <span class="text-red-300"
-            >{{ stats.numBlocks }} blocks censored</span
-          >
+          <span class="text-red-300">
+            {{ stats.numBlocks }} blocks censored
+          </span>
           transactions.
         </span>
         <span v-else class="text-green-300">
@@ -34,10 +34,10 @@
         In the past 24h,
         <span v-if="stats.numTransactions > 0">
           at least
-          <span class="text-red-300"
-            >{{ stats.numTransactions }} transactions
-            <span class="text-slate-100">were</span> censored</span
-          >
+          <span class="text-red-300">
+            {{ stats.numTransactions }} transactions
+            <span class="text-slate-100">were</span> censored.
+          </span>
         </span>
         <span v-else class="text-green-300">
           no transactions
