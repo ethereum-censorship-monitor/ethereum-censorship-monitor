@@ -1,0 +1,10 @@
+[package]
+name = "monitor"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+log = { version = "0.4", features = ["std", "serde"] }
+ethers = { git = "https://github.com/gakonst/ethers-rs" }
+rand = "0.8"
