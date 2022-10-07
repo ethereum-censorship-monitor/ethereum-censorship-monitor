@@ -1,2 +1,2 @@
-pub use ethers::types::{TxHash, H256};
+pub use ethers::types::{Block, TxHash, TxpoolContent, H256};
 pub type Timestamp = u64;

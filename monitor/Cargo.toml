@@ -5,6 +5,9 @@ edition = "2021"
 
 
 [dependencies]
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
 log = { version = "0.4", features = ["std", "serde"] }
-ethers = { git = "https://github.com/gakonst/ethers-rs" }
+ethers = { git = "https://github.com/gakonst/ethers-rs", features = ["ws", "openssl"] }
 rand = "0.8"
+url = "2.3.1"
