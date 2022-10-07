@@ -1,9 +1,10 @@
-use crate::types::{Block, TxHash, TxpoolContent, H256};
+use crate::types::{Block, Timestamp, TxHash, TxpoolContent, H256};
 use ethers::{
     prelude::*,
     providers::{Http, Middleware, Provider, Ws},
 };
 use std::fmt;
+use std::time::SystemTime;
 use tokio::sync::mpsc::Sender;
 
 /// NodeConfig stores the RPC and websocket URLs to an Ethereum node.
@@ -33,9 +34,37 @@ impl NodeConfig {
 
 #[derive(Debug)]
 pub enum Event {
-    NewTransaction { hash: TxHash },
-    NewHead { block: Block<H256> },
-    TxpoolContent { content: TxpoolContent },
+    NewTransaction {
+        hash: TxHash,
+        timestamp: Timestamp,
+    },
+    NewHead {
+        block: Block<H256>,
+        timestamp: Timestamp,
+    },
+    TxpoolContent {
+        content: TxpoolContent,
+        timestamp: Timestamp,
+    },
+}
+
+impl Event {
+    pub fn timestamp(&self) -> Timestamp {
+        match self {
+            Event::NewTransaction {
+                hash: _,
+                timestamp: t,
+            } => *t,
+            Event::NewHead {
+                block: _,
+                timestamp: t,
+            } => *t,
+            Event::TxpoolContent {
+                content: _,
+                timestamp: t,
+            } => *t,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -70,6 +99,15 @@ impl fmt::Display for StreamEndedError {
 
 impl std::error::Error for StreamEndedError {}
 
+/// Get the current timestamp, i.e. number of seconds since unix epoch.
+fn get_current_timestamp() -> Timestamp {
+    // unwrapping is fine since now will always be later than the unix epoch
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+}
+
 /// Watch for relevant events. The events are sent to the given tx channel. The following events are
 /// yielded:
 ///
@@ -103,7 +141,10 @@ pub async fn watch_transactions(
         .map_err(WatchError::ProviderError)?;
 
     while let Some(hash) = stream.next().await {
-        let event = Event::NewTransaction { hash };
+        let event = Event::NewTransaction {
+            hash,
+            timestamp: get_current_timestamp(),
+        };
         tx.send(event).await.map_err(WatchError::SendError)?;
     }
     Err(WatchError::StreamEndedError)
@@ -119,14 +160,20 @@ pub async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(
         .map_err(WatchError::ProviderError)?;
 
     while let Some(block) = block_stream.next().await {
-        let event = Event::NewHead { block };
+        let event = Event::NewHead {
+            block,
+            timestamp: get_current_timestamp(),
+        };
         tx.send(event).await.map_err(WatchError::SendError)?;
 
         let content = http_provider
             .txpool_content()
             .await
             .map_err(WatchError::ProviderError)?;
-        let event = Event::TxpoolContent { content };
+        let event = Event::TxpoolContent {
+            content,
+            timestamp: get_current_timestamp(),
+        };
         tx.send(event).await.map_err(WatchError::SendError)?;
     }
     Err(WatchError::StreamEndedError)
