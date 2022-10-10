@@ -10,6 +10,17 @@ pub struct MemoryDB {
     validators: HashMap<u64, Validator>,
 }
 
+impl MemoryDB {
+    pub fn new() -> Self {
+        MemoryDB {
+            txs: HashMap::new(),
+            blocks: HashMap::new(),
+            misses: HashMap::new(),
+            validators: HashMap::new(),
+        }
+    }
+}
+
 impl DB for MemoryDB {
     type Error = ();
 

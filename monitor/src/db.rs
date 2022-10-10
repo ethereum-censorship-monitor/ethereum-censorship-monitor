@@ -1,6 +1,6 @@
 use crate::types::{Timestamp, TxHash, H256};
 
-mod memory;
+pub mod memory;
 
 pub trait DB {
     type Error;
@@ -16,23 +16,23 @@ pub trait DB {
 
 #[derive(Debug)]
 pub struct Tx {
-    hash: TxHash,
+    pub hash: TxHash,
 }
 
 #[derive(Debug)]
 pub struct Block {
-    hash: H256,
-    proposer_index: u64,
+    pub hash: H256,
+    pub proposer_index: u64,
 }
 
 #[derive(Debug)]
 pub struct Miss {
-    tx: TxHash,
-    block: H256,
-    delay: Timestamp,
+    pub tx: TxHash,
+    pub block: H256,
+    pub delay: Timestamp,
 }
 
 #[derive(Debug)]
 pub struct Validator {
-    index: u64,
+    pub index: u64,
 }

@@ -147,7 +147,7 @@ impl Pool {
 }
 
 mod test {
-    use std::{collections::BTreeMap, str::FromStr};
+    use std::collections::BTreeMap;
 
     use ethers::types::{Address, Bytes, U256};
 
