@@ -59,13 +59,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let db_handle = tokio::spawn(async move {
+        println!("spawning db task");
         while let Some(analysis) = analysis_rx.recv().await {
             analyzer::insert_analysis_into_db(&analysis, &mut db).unwrap();
         }
     });
 
-    let watch_handle =
-        tokio::spawn(async move { watch::watch(node_config, event_tx).await.unwrap() });
+    let watch_handle = tokio::spawn(async move {
+        println!("spawning watch task");
+        watch::watch(node_config, event_tx).await.unwrap()
+    });
 
     tokio::select! {
         _ = process_handle => {},

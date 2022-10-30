@@ -24,8 +24,9 @@ impl Observation {
 /// - invisible: after a NotSeen observation (or not seen yet)
 /// - disappearing: between a Seen and a NotSeen observation
 ///
-/// There is no phase appearing because we assume we notice immediately when items are seen, but
-/// noticing that an item disappeared may be delayed.
+/// There is no phase Appearing because we assume we notice immediately when items are seen, so the
+/// duration in which an item would be Appearing is negligible. In contrast, noticing that an item
+/// has disappeared may be delayed, so the Disappearing phase is relevant.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Visibility {
     Visible {
@@ -99,8 +100,8 @@ impl Observations {
             Some(Observation::NotSeen(t)) => Visibility::Invisible {
                 disappeared: Some(*t),
             },
-            // if the item has been seen as seen, it's either visible or disappearing, depending on
-            // the following observation
+            // if the item has been observed as Seen, it's either visible or disappearing, depending
+            // on the following observation
             Some(Observation::Seen(t_before)) => {
                 // We only ever keep the first and the last Seen observations, every Seen in
                 // between will be squashed. Therefore, if the two previous observations are Seens,
@@ -128,102 +129,64 @@ impl Observations {
                 }
             }
         }
-
-        // if obs_before.is_none() {
-        //     return Visibility::Invisible { disappeared: None };
-        // }
-        // let obs_before = obs_before.unwrap();
-        // if let Observation::NotSeen(disappeared) = obs_before {
-        //     return Visibility::Invisible {
-        //         disappeared: Some(*disappeared),
-        //     };
-        // }
-
-        // // obs before is a Seen, so we're either Seen or Disappearing, depending on obs_after
-
-        // if let Some(Observation::NotSeen(disappeared)) = obs_after {
-        //     return Visibility::Disappearing {
-        //         last_seen: obs_before.timestamp(),
-        //         disappeared: *disappeared,
-        //     };
-        // }
-
-        // // obs after either doesn't exist or it's a seen
-
-        // if i == 0 {
-        //     // all observations are later than timestamp or there are no observations at all
-        //     return Visibility::Invisible { disappeared: None };
-        // }
-        // if i >= self.0.len() {
-        //     // all observations are earlier than timestamp
-        //     let l = self.0.len();
-        //     let last_obs = self.0[l - 1];
-        //     return match last_obs {
-        //         Observation::Seen(t) => Visibility::Visible {
-        //             first_seen: t,
-        //             last_seen: None,
-        //         },
-        //         Observation::NotSeen(t) => Visibility::Invisible {
-        //             disappeared: Some(t),
-        //         },
-        //     };
-        // }
-
-        // // timestamp is enclosed by two observations
-        // let obs_before = self.0[i - 1];
-        // let obs_after = self.0[i];
-        // match obs_before {
-        //     Observation::Seen(t_before) => match obs_after {
-        //         Observation::Seen(t_after) => Visibility::Visible {
-        //             first_seen: t_before,
-        //             last_seen: Some(t_after),
-        //         },
-        //         Observation::NotSeen(t_after) => Visibility::Disappearing {
-        //             last_seen: t_before,
-        //             disappeared: t_after,
-        //         },
-        //     },
-        //     Observation::NotSeen(t_before) => Visibility::Invisible {
-        //         disappeared: Some(t_before),
-        //     },
-        // }
     }
 
     /// Append an observation, squashing the last observations if needed, i.e.,
     ///   - Add a NotSeen only if the last observation is a Seen.
-    ///   - Don't add a Seen if the last two observations are Seens already. Instead, update the
+    ///   - Don't add a Seen if the last two observations are Seens already. Only update the
     ///     timestamp of the last Seen.
     ///   - Add the observation in all other cases.
     ///
     /// Return an error if the timestamp of the new observation is earlier than the previous one.
-    pub fn append(&mut self, o: Observation) -> Result<(), ChronologyError> {
+    pub fn append(&mut self, obs: Observation) -> Result<(), ChronologyError> {
+        // let last_obs = self.0.len().checked_sub(1).map_or(None, |i| self.0.get(i));
+        // let second_last_obs = self.0.len().checked_sub(2).map_or(None, |i| self.0.get(i));
+
+        // match (second_last_obs, last_obs, obs) {
+        //     (_, None, Observation::NotSeen(_)) => {}
+        //     (_, None, Observation::Seen(_)) => {
+        //         self.0.push_back(obs);
+        //     }
+        //     (_, Some(Observation::NotSeen(_)), Observation::NotSeen(_)) => {}
+
+        //     (Some(Observation::Seen(_)), Some(Observation::Seen(_)), Observation::Seen(_)) => {
+        //         self.0[self.0.len() - 1] = obs;
+        //     }
+        //     (_, Some(Observation::Seen(_)), Observation::Seen(_)) => {
+        //         self.0.push_back(obs);
+        //     }
+        // }
+
         let num_obs = self.0.len();
         if num_obs == 0 {
-            if let Observation::Seen(_) = o {
-                self.0.push_back(o);
+            if let Observation::Seen(_) = obs {
+                self.0.push_back(obs);
             }
             return Ok(());
         }
 
         let last_obs = self.0[num_obs - 1];
-        if o.timestamp() < last_obs.timestamp() {
+        if obs.timestamp() < last_obs.timestamp() {
             return Err(ChronologyError {});
         }
 
-        if let Observation::NotSeen(_) = o {
-            if let Observation::Seen(_) = last_obs {
-                self.0.push_back(o);
-            }
-        } else {
-            // it's a Seen
-            if num_obs <= 1 {
-                self.0.push_back(o);
-            } else if let Observation::NotSeen(_) = last_obs {
-                self.0.push_back(o);
-            } else if let Observation::NotSeen(_) = self.0[self.0.len() - 2] {
-                self.0.push_back(o);
-            } else {
-                self.0[num_obs - 1] = o;
+        match obs {
+            Observation::NotSeen(_) => match last_obs {
+                Observation::Seen(_) => {
+                    self.0.push_back(obs);
+                }
+                Observation::NotSeen(_) => {}
+            },
+            Observation::Seen(_) => {
+                if num_obs <= 1 {
+                    self.0.push_back(obs);
+                } else if let Observation::NotSeen(_) = last_obs {
+                    self.0.push_back(obs);
+                } else if let Observation::NotSeen(_) = self.0[self.0.len() - 2] {
+                    self.0.push_back(obs);
+                } else {
+                    self.0[num_obs - 1] = obs;
+                }
             }
         }
         Ok(())

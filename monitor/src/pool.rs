@@ -54,18 +54,24 @@ impl Pool {
         self.last_timestamp = t;
         self.last_content = hashes;
 
+        // insert txs from pool as Seen
         for hash in &self.last_content {
             let r = self
                 .tx_obs
                 .entry(hash.clone())
                 .or_insert_with(Observations::new)
                 .append(Observation::Seen(t));
-            if let Ok(_) = r {
-                self.txs.insert(*hash, (*txs.get(hash).unwrap()).clone());
-            } else {
-                warn!("ignoring non-chronological pool observation");
+            match r {
+                Ok(_) => {
+                    self.txs.insert(*hash, (*txs.get(hash).unwrap()).clone());
+                }
+                Err(_) => {
+                    warn!("ignoring non-chronological pool observation");
+                }
             }
         }
+
+        // insert txs not in pool anymore as NotSeen
         for hash in unseen_hashes {
             if let Some(obs) = self.tx_obs.get_mut(&hash) {
                 let r = obs.append(Observation::NotSeen(t));
@@ -106,7 +112,7 @@ impl Pool {
         let mut txs: HashMap<TxHash, TransactionWithVisibility> = HashMap::new();
         for (tx_hash, obs) in &self.tx_obs {
             let vis = obs.visibility_at(t);
-            let insert = match vis {
+            if match vis {
                 Visibility::Visible {
                     first_seen: _,
                     last_seen: _,
@@ -117,8 +123,7 @@ impl Pool {
                     disappeared: _,
                 } => true,
                 Visibility::Invisible { disappeared: _ } => false,
-            };
-            if insert {
+            } {
                 let tx = self.txs.get(tx_hash).map(|tx| tx.clone());
                 let tx_with_vis = TransactionWithVisibility {
                     hash: *tx_hash,
