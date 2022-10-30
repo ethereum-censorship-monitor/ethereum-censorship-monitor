@@ -1,7 +1,4 @@
-use crate::{
-    db::Miss,
-    types::{Block, ChronologyError, MissingBlockFieldError, Timestamp, H256},
-};
+use crate::types::{Block, ChronologyError, MissingBlockFieldError, Timestamp, H256};
 use log;
 use std::collections::VecDeque;
 

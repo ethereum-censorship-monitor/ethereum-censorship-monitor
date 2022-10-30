@@ -29,6 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut pool = simple_pool::SimplePool::new();
+    let mut head_history = head_history::HeadHistory::new();
     let mut db = db::memory::MemoryDB::new();
 
     let process_handle = tokio::spawn(async move {
@@ -42,8 +43,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Event::NewHead {
                     block: b,
-                    timestamp: _,
+                    timestamp: t,
                 } => {
+                    head_history.observe(t, b.clone()).unwrap();
                     let analysis = analyzer::analyze(&b, &pool);
                     pool.set_head_hash(b.hash.unwrap());
                     analysis_tx.send(analysis).await.unwrap();

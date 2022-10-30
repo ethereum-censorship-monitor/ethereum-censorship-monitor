@@ -1,6 +1,5 @@
 use crate::types::{ChronologyError, Timestamp};
 use std::collections;
-use std::fmt;
 
 /// Observation represents a check if an item is visible or not at a certain point in time.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
