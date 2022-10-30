@@ -131,6 +131,7 @@ impl Pool {
         txs
     }
 
+    /// Prune deletes all data that does not affect visibilities at or after the given timestamp.
     pub fn prune(&mut self, cutoff: Timestamp) {
         let mut fully_pruned: HashSet<TxHash> = HashSet::new();
         for (tx_hash, obs) in self.tx_obs.iter_mut() {
@@ -254,5 +255,26 @@ mod test {
         );
 
         p.pre_announce_transaction(9, H2).unwrap_err();
+    }
+
+    #[test]
+    fn test_prune() {
+        let mut p = Pool::new();
+        p.observe(10, make_pool(vec![H1, H2])).unwrap();
+        p.observe(20, make_pool(vec![H1])).unwrap();
+        p.prune(20);
+        assert_eq!(p.content_at(19).len(), 0);
+        assert_content(
+            p.content_at(20),
+            vec![(
+                H1,
+                Visibility::Visible {
+                    first_seen: 20,
+                    last_seen: 20,
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
     }
 }

@@ -236,8 +236,7 @@ impl Observations {
     pub fn prune(&mut self, cutoff: Timestamp) {
         // keep the observation right before the cutoff, remove all earlier ones as they don't
         // affect visibility after the cutoff
-        while self.0.len() >= 2 && self.0[0].timestamp() < cutoff && self.0[1].timestamp() < cutoff
-        {
+        while self.0.len() >= 2 && self.0[1].timestamp() <= cutoff {
             self.0.pop_front();
         }
         // remove leading NotSeen observations (even if they happened after the cutoff) as they
@@ -428,17 +427,17 @@ mod test {
             },
             TestCase {
                 obs: vec![seen(10), seen(20)],
-                t: 20,
+                t: 19,
                 n_pruned: 0,
             },
             TestCase {
                 obs: vec![seen(10), seen(20)],
-                t: 21,
+                t: 20,
                 n_pruned: 1,
             },
             TestCase {
                 obs: vec![seen(10), not_seen(20), seen(30)],
-                t: 21,
+                t: 20,
                 n_pruned: 2,
             },
         ];
