@@ -1,6 +1,7 @@
 mod analyzer;
 mod db;
 mod history;
+mod head_history;
 mod pool;
 mod simple_pool;
 mod types;
