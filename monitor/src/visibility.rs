@@ -128,24 +128,6 @@ impl Observations {
     ///
     /// Return an error if the timestamp of the new observation is earlier than the previous one.
     pub fn append(&mut self, obs: Observation) -> Result<(), ChronologyError> {
-        // let last_obs = self.0.len().checked_sub(1).map_or(None, |i| self.0.get(i));
-        // let second_last_obs = self.0.len().checked_sub(2).map_or(None, |i| self.0.get(i));
-
-        // match (second_last_obs, last_obs, obs) {
-        //     (_, None, Observation::NotSeen(_)) => {}
-        //     (_, None, Observation::Seen(_)) => {
-        //         self.0.push_back(obs);
-        //     }
-        //     (_, Some(Observation::NotSeen(_)), Observation::NotSeen(_)) => {}
-
-        //     (Some(Observation::Seen(_)), Some(Observation::Seen(_)), Observation::Seen(_)) => {
-        //         self.0[self.0.len() - 1] = obs;
-        //     }
-        //     (_, Some(Observation::Seen(_)), Observation::Seen(_)) => {
-        //         self.0.push_back(obs);
-        //     }
-        // }
-
         let num_obs = self.0.len();
         if num_obs == 0 {
             if let Observation::Seen(_) = obs {
