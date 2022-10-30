@@ -1,5 +1,4 @@
-use crate::types::Timestamp;
-use crate::visibility::ChronologyError;
+use crate::types::{ChronologyError, Timestamp};
 use std::collections::VecDeque;
 
 /// History keeps track of how a value changes over time.

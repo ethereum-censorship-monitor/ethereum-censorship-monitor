@@ -2,8 +2,8 @@ use ethers::types::TxpoolContent;
 use log::warn;
 use std::collections::{HashMap, HashSet};
 
-use crate::types::{Timestamp, TxHash, TxpoolTransaction};
-use crate::visibility::{ChronologyError, Observation, Observations, Visibility};
+use crate::types::{ChronologyError, Timestamp, TxHash, TxpoolTransaction};
+use crate::visibility::{Observation, Observations, Visibility};
 
 #[derive(Debug)]
 pub struct TransactionWithVisibility {

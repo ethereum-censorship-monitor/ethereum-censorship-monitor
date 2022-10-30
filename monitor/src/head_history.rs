@@ -1,5 +1,4 @@
-use crate::types::{Block, Timestamp, H256};
-use crate::visibility::ChronologyError;
+use crate::types::{Block, ChronologyError, Timestamp, H256};
 use log;
 use std::collections::VecDeque;
 

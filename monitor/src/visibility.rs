@@ -1,4 +1,4 @@
-use crate::types::Timestamp;
+use crate::types::{ChronologyError, Timestamp};
 use std::collections;
 use std::fmt;
 
@@ -41,16 +41,6 @@ pub enum Visibility {
     Invisible {
         disappeared: Option<Timestamp>,
     },
-}
-
-/// ChronologyError is returned when events are reported in wrong order.
-#[derive(Debug, PartialEq, Eq)]
-pub struct ChronologyError;
-
-impl fmt::Display for ChronologyError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "observations added in non-chronological order")
-    }
 }
 
 /// Observation represents a sequence of observations made over time of a single item.
