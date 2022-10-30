@@ -1,8 +1,17 @@
-use crate::types::{Block, ChronologyError, Timestamp, H256};
+use crate::{
+    db::Miss,
+    types::{Block, ChronologyError, MissingBlockFieldError, Timestamp, H256},
+};
 use log;
 use std::collections::VecDeque;
 
 pub struct HeadHistory(VecDeque<(Timestamp, Block<H256>)>);
+
+#[derive(Debug, PartialEq)]
+pub enum HeadHistoryError {
+    ChronologyError(ChronologyError),
+    MissingBlockFieldError(MissingBlockFieldError),
+}
 
 /// HeadHistory stores the history of head blocks. In the event of a reorg or missed blocks (that
 /// is, the new block is not a child of the current head), the whole history is cleared and only
@@ -16,12 +25,17 @@ impl HeadHistory {
 
     /// Add a new block to the history observed at the given timestamp. If the block is not the
     /// child of the current head, the history will be cleared.
-    pub fn observe(&mut self, t: Timestamp, head: Block<H256>) -> Result<(), ChronologyError> {
+    pub fn observe(&mut self, t: Timestamp, head: Block<H256>) -> Result<(), HeadHistoryError> {
+        if head.hash.is_none() {
+            return Err(HeadHistoryError::MissingBlockFieldError(
+                MissingBlockFieldError::new(String::from("hash")),
+            ));
+        }
         if let Some((last_t, last_head)) = self.0.back() {
             if t < *last_t {
-                return Err(ChronologyError {});
+                return Err(HeadHistoryError::ChronologyError(ChronologyError {}));
             }
-            if head.parent_hash != last_head.hash.expect("all blocks should have a hash") {
+            if head.parent_hash != last_head.hash.unwrap() {
                 log::info!(
                     "clearing head history due to reorg or missed blocks from {} to {}",
                     last_head.hash.unwrap(),
@@ -151,6 +165,16 @@ mod test {
             h.at(u64::MAX),
             Some(blocks_and_times[num_blocks - 1].0.clone())
         );
+    }
+
+    #[test]
+    fn test_observe_error() {
+        let mut h = HeadHistory::new();
+        assert!(h.observe(0, Block::default()).is_err());
+        let b1 = new_block(1);
+        let b2 = new_child(&b1);
+        h.observe(10, b1).unwrap();
+        assert!(h.observe(9, b2).is_err());
     }
 
     #[test]
