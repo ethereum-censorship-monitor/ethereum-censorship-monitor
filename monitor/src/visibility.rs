@@ -1,8 +1,9 @@
-use crate::types::{ChronologyError, Timestamp};
-use std::collections;
+use crate::types::Timestamp;
+use std::collections::vec_deque;
+use std::collections::VecDeque;
 
 /// Observation represents a check if an item is visible or not at a certain point in time.
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Observation {
     Seen(Timestamp),
     NotSeen(Timestamp),
@@ -43,29 +44,13 @@ pub enum Visibility {
 }
 
 /// Observation represents a sequence of observations made over time of a single item.
-#[derive(Debug, PartialEq, Eq)]
-pub struct Observations(collections::VecDeque<Observation>);
+#[derive(Debug, PartialEq)]
+pub struct Observations(VecDeque<Observation>);
 
 impl Observations {
     /// Create new empty Observations.
     pub fn new() -> Self {
-        Observations(collections::VecDeque::new())
-    }
-
-    /// Create from a sequence of observations. The observations must be ordered properly,
-    /// otherwise a ChronologyError is returned. Observations are automatically "squashed" (see the
-    /// documentation to append).
-    pub fn from_iter<I: IntoIterator<Item = Observation>>(
-        iter: I,
-    ) -> Result<Self, ChronologyError> {
-        let mut obs = Observations::new();
-        for o in iter {
-            let r = obs.append(o);
-            if let Err(e) = r {
-                return Err(e);
-            }
-        }
-        Ok(obs)
+        Observations(VecDeque::new())
     }
 
     /// Check if the item has not been observed at all (or all observations have been pruned).
@@ -120,47 +105,42 @@ impl Observations {
         }
     }
 
-    /// Append an observation, squashing the last observations if needed, i.e.,
-    ///   - Add a NotSeen only if the last observation is a Seen.
-    ///   - Don't add a Seen if the last two observations are Seens already. Only update the
-    ///     timestamp of the last Seen.
-    ///   - Add the observation in all other cases.
-    ///
-    /// Return an error if the timestamp of the new observation is earlier than the previous one.
-    pub fn append(&mut self, obs: Observation) -> Result<(), ChronologyError> {
-        let num_obs = self.0.len();
-        if num_obs == 0 {
-            if let Observation::Seen(_) = obs {
-                self.0.push_back(obs);
-            }
-            return Ok(());
-        }
+    /// Insert an observation, making sure invariants remain fulfilled, i.e.:
+    ///   - No two NotSeens in a row (remove the second one)
+    ///   - No three Seens in a row (delete the middle one)
+    pub fn insert(&mut self, obs: Observation) {
+        let i = self
+            .0
+            .partition_point(|&o| o.timestamp() <= obs.timestamp());
+        self.0.insert(i, obs);
 
-        let last_obs = self.0[num_obs - 1];
-        if obs.timestamp() < last_obs.timestamp() {
-            return Err(ChronologyError {});
-        }
-
+        // Check if we now have two NotSeens in a row (and if so delete the second one) or three
+        // Seens in a row (and delete the middle one)
         match obs {
-            Observation::NotSeen(_) => match last_obs {
-                Observation::Seen(_) => {
-                    self.0.push_back(obs);
+            Observation::NotSeen(_) => {
+                let pre = i.checked_sub(1).map_or(None, |j| self.0.get(j));
+                let post = self.0.get(i + 1);
+                if pre.is_none() || matches!(pre, Some(Observation::NotSeen(_))) {
+                    self.0.remove(i);
+                } else if matches!(post, Some(Observation::NotSeen(_))) {
+                    self.0.remove(i + 1);
                 }
-                Observation::NotSeen(_) => {}
-            },
+            }
             Observation::Seen(_) => {
-                if num_obs <= 1 {
-                    self.0.push_back(obs);
-                } else if let Observation::NotSeen(_) = last_obs {
-                    self.0.push_back(obs);
-                } else if let Observation::NotSeen(_) = self.0[self.0.len() - 2] {
-                    self.0.push_back(obs);
-                } else {
-                    self.0[num_obs - 1] = obs;
+                // Check if we now have three Seens in a row and if so delete the middle one
+                let first_triple_start_index = i.saturating_sub(2);
+                let last_triple_start_index = (i + 1).clamp(0, self.0.len().saturating_sub(2));
+                for triple_start_index in first_triple_start_index..last_triple_start_index {
+                    let mut triple_indices = triple_start_index..triple_start_index + 3;
+                    let all_seens =
+                        triple_indices.all(|j| matches!(self.0[j], Observation::Seen(_)));
+                    if all_seens {
+                        self.0.remove(triple_start_index + 1);
+                        break;
+                    }
                 }
             }
         }
-        Ok(())
     }
 
     /// Remove old and unnecessary observations assuming we're only interested in visibilities at or
@@ -181,9 +161,21 @@ impl Observations {
     }
 }
 
+impl FromIterator<Observation> for Observations {
+    /// Create from a sequence of observations. The order of observations matters as they might be
+    /// squashed during insert (see insert).
+    fn from_iter<I: IntoIterator<Item = Observation>>(iter: I) -> Self {
+        let mut obs = Observations::new();
+        for o in iter {
+            obs.insert(o);
+        }
+        obs
+    }
+}
+
 impl IntoIterator for Observations {
     type Item = Observation;
-    type IntoIter = collections::vec_deque::IntoIter<Self::Item>;
+    type IntoIter = vec_deque::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -272,21 +264,14 @@ mod test {
         ];
 
         for test_case in test_cases {
-            let obs = Observations::from_iter(test_case.obs).unwrap();
+            let obs = Observations::from_iter(test_case.obs);
             let v = obs.visibility_at(test_case.t);
             assert_eq!(v, test_case.v);
         }
     }
 
     #[test]
-    fn test_append_observation_error() {
-        let mut obs = Observations::new();
-        obs.append(seen(10)).unwrap();
-        obs.append(seen(9)).unwrap_err();
-    }
-
-    #[test]
-    fn test_append_observation_success() {
+    fn test_insert() {
         struct TestCase {
             obs: Vec<Observation>,
             o: Observation,
@@ -305,23 +290,46 @@ mod test {
             },
             TestCase {
                 obs: vec![seen(10)],
-                o: seen(15),
-                exp: vec![seen(10), seen(15)],
-            },
-            TestCase {
-                obs: vec![seen(10)],
-                o: not_seen(15),
-                exp: vec![seen(10), not_seen(15)],
-            },
-            TestCase {
-                obs: vec![seen(10), seen(15)],
                 o: seen(20),
                 exp: vec![seen(10), seen(20)],
             },
+            TestCase {
+                obs: vec![seen(20)],
+                o: seen(10),
+                exp: vec![seen(10), seen(20)],
+            },
+            TestCase {
+                obs: vec![seen(10), not_seen(20)],
+                o: not_seen(30),
+                exp: vec![seen(10), not_seen(20)],
+            },
+            TestCase {
+                obs: vec![seen(10), not_seen(30)],
+                o: not_seen(20),
+                exp: vec![seen(10), not_seen(20)],
+            },
+            TestCase {
+                obs: vec![seen(10), seen(20)],
+                o: seen(30),
+                exp: vec![seen(10), seen(30)],
+            },
+            TestCase {
+                obs: vec![seen(10), seen(30)],
+                o: seen(20),
+                exp: vec![seen(10), seen(30)],
+            },
+            TestCase {
+                obs: vec![seen(20), seen(30)],
+                o: seen(10),
+                exp: vec![seen(10), seen(30)],
+            },
         ];
         for test_case in test_cases {
-            let mut obs = Observations::from_iter(test_case.obs).unwrap();
-            obs.append(test_case.o).unwrap();
+            let mut obs = Observations::new();
+            for o in test_case.obs {
+                obs.insert(o);
+            }
+            obs.insert(test_case.o);
             assert!(obs.into_iter().eq(test_case.exp));
         }
     }
@@ -376,7 +384,7 @@ mod test {
             },
         ];
         for test_case in test_cases {
-            let mut obs = Observations::from_iter(test_case.obs.clone()).unwrap();
+            let mut obs = Observations::from_iter(test_case.obs.clone());
             obs.prune(test_case.t);
             let exp = test_case.obs[test_case.n_pruned..].into_iter().cloned();
             assert!(obs.into_iter().eq(exp));
@@ -385,9 +393,9 @@ mod test {
 
     #[test]
     fn test_is_empty() {
-        let empty = Observations::from_iter(vec![]).unwrap();
+        let empty = Observations::from_iter(vec![]);
         assert!(empty.is_empty());
-        let non_empty = Observations::from_iter(vec![Observation::Seen(10)]).unwrap();
+        let non_empty = Observations::from_iter(vec![Observation::Seen(10)]);
         assert!(!non_empty.is_empty());
     }
 }

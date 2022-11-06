@@ -1,8 +1,7 @@
 use ethers::types::TxpoolContent;
-use log::warn;
 use std::collections::{HashMap, HashSet};
 
-use crate::types::{ChronologyError, Timestamp, TxHash, TxpoolTransaction};
+use crate::types::{Timestamp, TxHash, TxpoolTransaction};
 use crate::visibility::{Observation, Observations, Visibility};
 
 #[derive(Debug)]
@@ -16,7 +15,6 @@ pub struct TransactionWithVisibility {
 /// a method to query the set of transactions and their visibilities that were present at a given
 /// point in time.
 pub struct Pool {
-    last_timestamp: Timestamp,
     last_content: HashSet<TxHash>,
     tx_obs: HashMap<TxHash, Observations>,
     txs: HashMap<TxHash, TxpoolTransaction>,
@@ -25,7 +23,6 @@ pub struct Pool {
 impl Pool {
     pub fn new() -> Self {
         Pool {
-            last_timestamp: 0,
             last_content: HashSet::new(),
             tx_obs: HashMap::new(),
             txs: HashMap::new(),
@@ -36,11 +33,7 @@ impl Pool {
     /// will be observed as Seen. The transactions that are missing compared to the previous
     /// invocation (or intermediate additions via pre_announce_transaction) are observed as
     /// NotSeen.
-    pub fn observe(&mut self, t: Timestamp, content: TxpoolContent) -> Result<(), ChronologyError> {
-        if t < self.last_timestamp {
-            return Err(ChronologyError);
-        }
-
+    pub fn observe(&mut self, t: Timestamp, content: TxpoolContent) {
         let mut txs: HashMap<TxHash, &TxpoolTransaction> = HashMap::new();
         for v in content.pending.values().chain(content.queued.values()) {
             for tx in v.values() {
@@ -51,59 +44,31 @@ impl Pool {
 
         let unseen_hashes = self.last_content.difference(&hashes);
         let unseen_hashes: HashSet<TxHash> = unseen_hashes.copied().collect();
-        self.last_timestamp = t;
         self.last_content = hashes;
 
         // insert txs from pool as Seen
         for hash in &self.last_content {
-            let r = self
-                .tx_obs
+            self.tx_obs
                 .entry(hash.clone())
                 .or_insert_with(Observations::new)
-                .append(Observation::Seen(t));
-            match r {
-                Ok(_) => {
-                    self.txs.insert(*hash, (*txs.get(hash).unwrap()).clone());
-                }
-                Err(_) => {
-                    warn!("ignoring non-chronological pool observation");
-                }
-            }
+                .insert(Observation::Seen(t));
+            self.txs.insert(*hash, (*txs.get(hash).unwrap()).clone());
         }
 
         // insert txs not in pool anymore as NotSeen
         for hash in unseen_hashes {
             if let Some(obs) = self.tx_obs.get_mut(&hash) {
-                let r = obs.append(Observation::NotSeen(t));
-                if let Err(_) = r {
-                    warn!("ignoring non-chronological pool observation");
-                }
+                obs.insert(Observation::NotSeen(t));
             }
         }
-
-        Ok(())
     }
 
     /// Inform the pool about an individual transaction observed as Seen at the given timestamp.
-    pub fn pre_announce_transaction(
-        &mut self,
-        t: Timestamp,
-        hash: TxHash,
-    ) -> Result<(), ChronologyError> {
-        if t < self.last_timestamp {
-            return Err(ChronologyError);
-        }
-        self.last_timestamp = t;
-
-        let r = self
-            .tx_obs
+    pub fn pre_announce_transaction(&mut self, t: Timestamp, hash: TxHash) {
+        self.tx_obs
             .entry(hash.clone())
             .or_insert_with(Observations::new)
-            .append(Observation::Seen(t));
-        if let Err(_) = r {
-            warn!("ignoring non-chronological transaction pre-announce");
-        }
-        Ok(())
+            .insert(Observation::Seen(t));
     }
 
     /// Query the set of transactions that are either visible or disappearing at the given
@@ -152,6 +117,7 @@ impl Pool {
     }
 }
 
+#[cfg(test)]
 mod test {
     use std::collections::BTreeMap;
 
@@ -202,8 +168,8 @@ mod test {
     #[test]
     fn test_observe() {
         let mut p = Pool::new();
-        p.observe(10, make_pool(vec![H1, H2])).unwrap();
-        p.observe(20, make_pool(vec![H1])).unwrap();
+        p.observe(10, make_pool(vec![H1, H2]));
+        p.observe(20, make_pool(vec![H1]));
 
         assert_content(p.content_at(9), vec![].into_iter().collect());
         assert_content(
@@ -245,7 +211,7 @@ mod test {
     #[test]
     fn test_pre_announce() {
         let mut p = Pool::new();
-        p.pre_announce_transaction(10, H1).unwrap();
+        p.pre_announce_transaction(10, H1);
         assert_content(
             p.content_at(10),
             vec![(
@@ -258,15 +224,13 @@ mod test {
             .into_iter()
             .collect(),
         );
-
-        p.pre_announce_transaction(9, H2).unwrap_err();
     }
 
     #[test]
     fn test_prune() {
         let mut p = Pool::new();
-        p.observe(10, make_pool(vec![H1, H2])).unwrap();
-        p.observe(20, make_pool(vec![H1])).unwrap();
+        p.observe(10, make_pool(vec![H1, H2]));
+        p.observe(20, make_pool(vec![H1]));
         p.prune(20);
         assert_eq!(p.content_at(19).len(), 0);
         assert_content(

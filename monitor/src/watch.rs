@@ -1,10 +1,13 @@
-use crate::types::{Block, Timestamp, TxHash, TxpoolContent, H256};
+use crate::consensus_api::{ConsensusAPIError, ConsensusProvider};
+use crate::types::{BeaconBlock, NewBeaconHeadEvent, Timestamp, TxHash, TxpoolContent};
 use ethers::{
     prelude::*,
     providers::{Http, Middleware, Provider, Ws},
 };
-use std::fmt;
+use reqwest;
+use reqwest_eventsource;
 use std::time::SystemTime;
+use thiserror::Error;
 use tokio::sync::mpsc::Sender;
 
 /// NodeConfig stores the RPC and websocket URLs to an Ethereum node.
@@ -12,6 +15,7 @@ use tokio::sync::mpsc::Sender;
 pub struct NodeConfig {
     pub http_url: url::Url,
     pub ws_url: url::Url,
+    pub consensus_http_url: url::Url,
 }
 
 impl NodeConfig {
@@ -30,6 +34,17 @@ impl NodeConfig {
             .await
             .map_err(WatchError::ProviderError)
     }
+
+    /// Create and connect a consensus node provider for the node at consensus_http_url.
+    pub fn consensus_provider(&self) -> ConsensusProvider {
+        ConsensusProvider::new(self.consensus_http_url.clone())
+    }
+
+    pub async fn test_connection(&self) -> Result<(), ProviderError> {
+        let p = self.http_provider();
+        p.get_block_number().await?;
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -39,7 +54,7 @@ pub enum Event {
         timestamp: Timestamp,
     },
     NewHead {
-        block: Block<H256>,
+        beacon_block: BeaconBlock<Transaction>,
         timestamp: Timestamp,
     },
     TxpoolContent {
@@ -56,7 +71,7 @@ impl Event {
                 timestamp: t,
             } => *t,
             Event::NewHead {
-                block: _,
+                beacon_block: _,
                 timestamp: t,
             } => *t,
             Event::TxpoolContent {
@@ -67,37 +82,23 @@ impl Event {
     }
 }
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum WatchError {
+    #[error("stream ended unexpectedly")]
     StreamEndedError,
+    #[error("{0}")]
     SendError(tokio::sync::mpsc::error::SendError<Event>),
+    #[error("{0}")]
     ProviderError(ethers::providers::ProviderError),
+    #[error("{0}")]
     JoinError(tokio::task::JoinError),
+    #[error("{0}")]
+    ReqwestEventsourceError(reqwest_eventsource::Error),
+    #[error("{0}")]
+    JSONError(serde_json::Error),
+    #[error("{0}")]
+    ConsensusAPIError(ConsensusAPIError),
 }
-
-impl fmt::Display for WatchError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            WatchError::StreamEndedError => self.fmt(f),
-            WatchError::SendError(_) => self.fmt(f),
-            WatchError::ProviderError(_) => self.fmt(f),
-            WatchError::JoinError(_) => self.fmt(f),
-        }
-    }
-}
-
-impl std::error::Error for WatchError {}
-
-#[derive(Debug)]
-struct StreamEndedError;
-
-impl fmt::Display for StreamEndedError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "stream ended unexpectedly")
-    }
-}
-
-impl std::error::Error for StreamEndedError {}
 
 /// Get the current timestamp, i.e. number of seconds since unix epoch.
 fn get_current_timestamp() -> Timestamp {
@@ -117,7 +118,7 @@ fn get_current_timestamp() -> Timestamp {
 ///
 /// Returns an error if there's an issue with the node connection or the receiving side of the
 /// channel is closed.
-pub async fn watch(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), WatchError> {
+pub async fn watch(node_config: &NodeConfig, tx: Sender<Event>) -> Result<(), WatchError> {
     let transactions_handle = tokio::spawn(watch_transactions(node_config.clone(), tx.clone()));
     let heads_handle = tokio::spawn(watch_heads(node_config.clone(), tx.clone()));
     let r = tokio::select! {
@@ -150,23 +151,57 @@ pub async fn watch_transactions(
     Err(WatchError::StreamEndedError)
 }
 
-pub async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), WatchError> {
-    let http_provider = node_config.http_provider();
-    let ws_provider = node_config.ws_provider().await?;
+async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), WatchError> {
+    let exec_provider = node_config.http_provider();
+    let cons_provider = node_config.consensus_provider();
 
-    let mut block_stream = ws_provider
-        .subscribe_blocks()
-        .await
-        .map_err(WatchError::ProviderError)?;
+    let url = node_config
+        .consensus_http_url
+        .join("/eth/v1/events?topics=head")
+        .unwrap();
+    let request = reqwest::Client::new().get(url);
+    let mut es = reqwest_eventsource::EventSource::new(request).unwrap();
+    while let Some(event) = es.next().await {
+        let t = get_current_timestamp();
+        match event {
+            Ok(reqwest_eventsource::Event::Open) => {}
+            Ok(reqwest_eventsource::Event::Message(message)) => {
+                let event: Result<NewBeaconHeadEvent, serde_json::Error> =
+                    serde_json::from_str(message.data.as_str());
+                if let Err(e) = event {
+                    es.close();
+                    return Err(WatchError::JSONError(e));
+                }
+                let event = event.unwrap();
+                println!("{:?}", event);
 
-    while let Some(block) = block_stream.next().await {
-        let event = Event::NewHead {
-            block,
-            timestamp: get_current_timestamp(),
-        };
-        tx.send(event).await.map_err(WatchError::SendError)?;
+                let beacon_block_without_root = cons_provider.fetch_beacon_block(event.block).await;
+                if let Err(e) = beacon_block_without_root {
+                    es.close();
+                    return Err(WatchError::ConsensusAPIError(e));
+                }
+                let beacon_block =
+                    BeaconBlock::new(beacon_block_without_root.unwrap(), event.block);
 
-        let content = http_provider
+                if let Err(e) = tx
+                    .send(Event::NewHead {
+                        beacon_block,
+                        timestamp: t,
+                    })
+                    .await
+                {
+                    es.close();
+                    return Err(WatchError::SendError(e));
+                }
+            }
+            Err(e) => {
+                es.close();
+                println!("{}", e);
+                return Err(WatchError::ReqwestEventsourceError(e));
+            }
+        }
+
+        let content = exec_provider
             .txpool_content()
             .await
             .map_err(WatchError::ProviderError)?;

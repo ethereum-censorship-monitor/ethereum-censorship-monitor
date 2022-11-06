@@ -1,13 +1,13 @@
-use crate::types::{Address, Block, MissingBlockFieldError, Transaction, H256, U256};
+use crate::types::{Address, BeaconBlock, H256};
 use ethers::{
     providers::{Http, Middleware, Provider, ProviderError},
-    types::BlockId,
+    types::{BlockId, Transaction},
 };
 use std::collections::HashMap;
 use thiserror::Error;
 
 pub struct NonceCache {
-    head_hash: H256,
+    beacon_block: BeaconBlock<Transaction>,
     nonces: HashMap<Address, u64>,
     provider: Provider<Http>,
 }
@@ -16,52 +16,46 @@ pub struct NonceCache {
 pub enum NonceCacheError {
     #[error("provider error: {0}")]
     ProviderError(ProviderError),
-    #[error("failed to fetch block {n} as it does not exist")]
-    MissingBlockError { n: u64 },
-    #[error("{0}")]
-    MissingBlockFieldError(MissingBlockFieldError),
+    #[error(
+        "failed to fetch block {:?} as it does not exist",
+        .n.map(|n| n.to_string()).or(.hash.map(|h| h.to_string())).unwrap())]
+    MissingBlockError { n: Option<u64>, hash: Option<H256> },
+    #[error("queried cache at block hash {queried} instead of {internal}")]
+    WrongBlockError { internal: H256, queried: H256 },
 }
 
 impl NonceCache {
-    pub fn new(provider: Provider<Http>, head_hash: H256) -> Self {
+    pub fn new(provider: Provider<Http>) -> Self {
         NonceCache {
-            head_hash,
+            beacon_block: BeaconBlock::default(),
             nonces: HashMap::new(),
             provider,
         }
     }
 
-    pub async fn initialize(
-        provider: Provider<Http>,
-        delay: usize,
-    ) -> Result<Self, NonceCacheError> {
-        let initial_block_number = provider
-            .get_block_number()
-            .await
-            .map_err(NonceCacheError::ProviderError)?;
-        let initial_head = provider
-            .get_block(initial_block_number - delay)
-            .await
-            .map_err(NonceCacheError::ProviderError)?
-            .ok_or(NonceCacheError::MissingBlockError {
-                n: initial_block_number.as_u64(),
-            })?;
-        let initial_hash = initial_head
-            .hash
-            .ok_or(NonceCacheError::MissingBlockFieldError(
-                MissingBlockFieldError::new(String::from("hash")),
-            ))?;
-        Ok(Self::new(provider, initial_hash))
-    }
+    pub async fn get(
+        &mut self,
+        account: &Address,
+        beacon_block: &BeaconBlock<Transaction>,
+    ) -> Result<u64, NonceCacheError> {
+        if beacon_block.root != self.beacon_block.root {
+            return Err(NonceCacheError::WrongBlockError {
+                internal: self.beacon_block.root,
+                queried: beacon_block.root,
+            });
+        }
 
-    pub async fn get(&mut self, account: &Address) -> Result<u64, ProviderError> {
+        let block_id = Some(BlockId::Hash(
+            beacon_block.body.execution_payload.block_hash,
+        ));
         match self.nonces.get(account) {
             Some(&n) => Ok(n),
             None => {
                 let nonce_u256 = self
                     .provider
-                    .get_transaction_count(account.clone(), Some(BlockId::Hash(self.head_hash)))
-                    .await?;
+                    .get_transaction_count(account.clone(), block_id)
+                    .await
+                    .map_err(NonceCacheError::ProviderError)?;
                 let nonce = nonce_u256.as_u64();
                 self.nonces.insert(account.clone(), nonce);
                 Ok(nonce)
@@ -69,12 +63,18 @@ impl NonceCache {
         }
     }
 
-    pub fn apply_head(&mut self, head: &Block<Transaction>) {
-        if self.head_hash != head.parent_hash {
+    pub fn apply_block(&mut self, beacon_block: BeaconBlock<Transaction>) {
+        if beacon_block.parent_root != self.beacon_block.root {
+            log::info!(
+                "clearing nonce cache due to reorg from {} to {}",
+                self.beacon_block,
+                beacon_block,
+            );
             self.nonces.clear();
         }
-        self.head_hash = head.hash.unwrap();
-        for tx in &head.transactions {
+        self.beacon_block = beacon_block;
+
+        for tx in &self.beacon_block.body.execution_payload.transactions {
             self.nonces
                 .entry(tx.from)
                 .and_modify(|n| *n = tx.nonce.as_u64() + 1);

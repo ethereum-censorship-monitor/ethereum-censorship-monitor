@@ -12,3 +12,11 @@ ethers = { git = "https://github.com/gakonst/ethers-rs", features = ["ws", "open
 rand = "0.8"
 url = "2.3.1"
 thiserror = "1.0"
+reqwest = { version = "0.11.12", features = ["json"] }
+serde = { version = "1.0.147", features = ["derive"] }
+serde_json = "1.0.87"
+env_logger = "0.9.1"
+reqwest-eventsource = "0.4.0"
+futures = "0.3.25"
+hex = "0.4.3"
+rlp = "0.5.2"
