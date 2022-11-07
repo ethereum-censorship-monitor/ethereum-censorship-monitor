@@ -1,8 +1,6 @@
 use crate::types::{Address, BeaconBlock, H256};
-use ethers::{
-    providers::{Http, Middleware, Provider, ProviderError},
-    types::{BlockId, Transaction},
-};
+use ethers::providers::{Http, Middleware, Provider, ProviderError};
+use ethers::types::{BlockId, Transaction};
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -16,10 +14,6 @@ pub struct NonceCache {
 pub enum NonceCacheError {
     #[error("provider error: {0}")]
     ProviderError(ProviderError),
-    #[error(
-        "failed to fetch block {:?} as it does not exist",
-        .n.map(|n| n.to_string()).or(.hash.map(|h| h.to_string())).unwrap())]
-    MissingBlockError { n: Option<u64>, hash: Option<H256> },
     #[error("queried cache at block hash {queried} instead of {internal}")]
     WrongBlockError { internal: H256, queried: H256 },
 }
@@ -74,10 +68,18 @@ impl NonceCache {
         }
         self.beacon_block = beacon_block;
 
+        let mut num_modified = 0;
         for tx in &self.beacon_block.body.execution_payload.transactions {
-            self.nonces
-                .entry(tx.from)
-                .and_modify(|n| *n = tx.nonce.as_u64() + 1);
+            self.nonces.entry(tx.from).and_modify(|n| {
+                *n = tx.nonce.as_u64() + 1;
+                num_modified += 1;
+            });
         }
+        log::debug!(
+            "applied block {} to nonce cache, updating {} of {} entries",
+            self.beacon_block,
+            num_modified,
+            self.nonces.len(),
+        );
     }
 }

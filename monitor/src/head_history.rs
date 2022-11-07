@@ -20,15 +20,30 @@ impl HeadHistory {
     /// Insert a new block into the history observed at the given timestamp.
     pub fn observe(&mut self, timestamp: Timestamp, head: BeaconBlock<Transaction>) {
         let i = self.0.partition_point(|oh| oh.timestamp <= timestamp);
+        log::debug!(
+            "inserting block {} observed at time {} into head history at index {} (current length {})",
+            head,
+            timestamp,
+            i,
+            self.0.len(),
+        );
         self.0.insert(i, ObservedHead { head, timestamp });
     }
 
     /// Delete blocks that do not affect the history at or after cutoff.
     pub fn prune(&mut self, cutoff: Timestamp) {
+        let mut num_pruned = 0;
         while let Some(oh) = self.0.get(1) {
             if oh.timestamp <= cutoff {
                 self.0.pop_front();
+                num_pruned += 1;
             } else {
+                log::debug!(
+                    "pruned {} of {} blocks before time {} in head history",
+                    num_pruned,
+                    self.0.len() + num_pruned,
+                    cutoff
+                );
                 break;
             }
         }

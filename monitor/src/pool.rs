@@ -33,7 +33,7 @@ impl Pool {
     /// will be observed as Seen. The transactions that are missing compared to the previous
     /// invocation (or intermediate additions via pre_announce_transaction) are observed as
     /// NotSeen.
-    pub fn observe(&mut self, t: Timestamp, content: TxpoolContent) {
+    pub fn observe(&mut self, timestamp: Timestamp, content: TxpoolContent) {
         let mut txs: HashMap<TxHash, &TxpoolTransaction> = HashMap::new();
         for v in content.pending.values().chain(content.queued.values()) {
             for tx in v.values() {
@@ -47,20 +47,33 @@ impl Pool {
         self.last_content = hashes;
 
         // insert txs from pool as Seen
+        let mut num_new = 0;
         for hash in &self.last_content {
             self.tx_obs
                 .entry(hash.clone())
-                .or_insert_with(Observations::new)
-                .insert(Observation::Seen(t));
+                .or_insert_with({
+                    num_new += 1;
+                    Observations::new
+                })
+                .insert(Observation::Seen(timestamp));
             self.txs.insert(*hash, (*txs.get(hash).unwrap()).clone());
         }
 
         // insert txs not in pool anymore as NotSeen
-        for hash in unseen_hashes {
+        for hash in &unseen_hashes {
             if let Some(obs) = self.tx_obs.get_mut(&hash) {
-                obs.insert(Observation::NotSeen(t));
+                obs.insert(Observation::NotSeen(timestamp));
             }
         }
+
+        log::debug!(
+            "observed pool at timestamp {} with {} txs ({} insertions, {} unseen, {} total entries)",
+            timestamp,
+            self.last_content.len(),
+            num_new,
+            unseen_hashes.len(),
+            self.tx_obs.len(),
+        );
     }
 
     /// Inform the pool about an individual transaction observed as Seen at the given timestamp.
@@ -110,10 +123,16 @@ impl Pool {
                 fully_pruned.insert(*tx_hash);
             }
         }
-        for tx_hash in fully_pruned {
+        for tx_hash in &fully_pruned {
             self.tx_obs.remove(&tx_hash);
             self.txs.remove(&tx_hash);
         }
+        log::debug!(
+            "pruned {} txs from pool before time {} to a new size of {}",
+            fully_pruned.len(),
+            cutoff,
+            self.tx_obs.len()
+        );
     }
 }
 

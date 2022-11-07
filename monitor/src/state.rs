@@ -22,8 +22,6 @@ pub struct State {
     pool: Pool,
     head_history: HeadHistory,
     nonce_cache: NonceCache,
-
-    num_received_blocks: usize,
 }
 
 impl State {
@@ -38,8 +36,6 @@ impl State {
             pool,
             head_history,
             nonce_cache,
-
-            num_received_blocks: 0,
         }
     }
 
@@ -87,38 +83,33 @@ impl State {
         beacon_block: BeaconBlock<Transaction>,
         t: Timestamp,
     ) -> Option<Analysis> {
-        self.num_received_blocks += 1;
         log::info!("processing block {}", beacon_block);
         self.head_history.observe(t, beacon_block.clone());
         self.nonce_cache.apply_block(beacon_block.clone());
 
-        if self.num_received_blocks <= 1 {
-            // don't try to analyze because we know we don't have the parent block
-            return None;
-        }
-        let parent = self.head_history.at(beacon_block.proposal_time());
-        if match parent {
+        let proposal_time = beacon_block.proposal_time();
+        let parent = self.head_history.at(proposal_time);
+        match parent {
             None => {
-                log::info!("skipping analysis, no idea if our view of parent block matched");
-                true
+                log::info!(
+                    "skipping analysis as head block at proposal time {} is unknown",
+                    proposal_time
+                );
+                return None;
             }
             Some(parent_observation) => {
                 if parent_observation.head.root != beacon_block.parent_root {
-                    log::info!("skipping analysis, head mismatch at proposal time");
-                    true
-                } else {
-                    false
+                    log::info!(
+                        "skipping analysis due to head mismatch at proposal time (parent: {}, our \
+                        view: {})",
+                        beacon_block.parent_root,
+                        parent_observation.head,
+                    );
+                    return None;
                 }
             }
-        } {
-            return None;
         }
 
-        log::info!(
-            "analyzing block {} with {} transactions",
-            beacon_block,
-            &beacon_block.body.execution_payload.transactions.len()
-        );
         Some(analyze(&beacon_block, &self.pool, &mut self.nonce_cache).await)
     }
 }

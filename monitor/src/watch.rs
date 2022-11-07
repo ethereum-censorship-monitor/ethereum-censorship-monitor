@@ -173,7 +173,6 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
                     return Err(WatchError::JSONError(e));
                 }
                 let event = event.unwrap();
-                println!("{:?}", event);
 
                 let beacon_block_without_root = cons_provider.fetch_beacon_block(event.block).await;
                 if let Err(e) = beacon_block_without_root {
@@ -196,7 +195,6 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
             }
             Err(e) => {
                 es.close();
-                println!("{}", e);
                 return Err(WatchError::ReqwestEventsourceError(e));
             }
         }
