@@ -1,10 +1,8 @@
-use std::time::Instant;
-
 use crate::analyze::{analyze, Analysis};
 use crate::head_history::HeadHistory;
 use crate::nonce_cache::{NonceCache, NonceCacheError};
 use crate::pool::Pool;
-use crate::types::{BeaconBlock, Timestamp, TxHash, TxpoolContent, H256};
+use crate::types::{BeaconBlock, Timestamp, TxHash, TxpoolContent};
 use crate::watch::{Event, NodeConfig};
 use ethers::providers::ProviderError;
 use ethers::types::Transaction;
@@ -94,8 +92,9 @@ impl State {
             Some(parent_observation) => {
                 if parent_observation.head.root != beacon_block.parent_root {
                     log::info!(
-                        "skipping analysis due to head mismatch at proposal time (parent: {}, our \
-                        view: {})",
+                        "skipping analysis due to head mismatch at proposal time (block: {}, \
+                        parent: {}, head at proposal time: {})",
+                        beacon_block,
                         beacon_block.parent_root,
                         parent_observation.head,
                     );

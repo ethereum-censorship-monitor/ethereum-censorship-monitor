@@ -21,9 +21,11 @@ impl HeadHistory {
     pub fn observe(&mut self, timestamp: Timestamp, head: BeaconBlock<Transaction>) {
         let i = self.0.partition_point(|oh| oh.timestamp <= timestamp);
         log::debug!(
-            "inserting block {} observed at time {} into head history at index {} (current length {})",
+            "inserting block {} observed at time {} ({}s after proposal time) into head history at \
+            index {} (current length {})",
             head,
             timestamp,
+            timestamp - head.proposal_time(),
             i,
             self.0.len(),
         );
