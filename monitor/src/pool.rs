@@ -51,9 +51,9 @@ impl Pool {
         for hash in &self.last_content {
             self.tx_obs
                 .entry(hash.clone())
-                .or_insert_with({
+                .or_insert_with(|| {
                     num_new += 1;
-                    Observations::new
+                    Observations::new()
                 })
                 .insert(Observation::Seen(timestamp));
             self.txs.insert(*hash, (*txs.get(hash).unwrap()).clone());
