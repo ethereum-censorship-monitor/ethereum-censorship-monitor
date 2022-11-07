@@ -146,7 +146,13 @@ pub async fn watch_transactions(
             hash,
             timestamp: get_current_timestamp(),
         };
-        tx.send(event).await.map_err(WatchError::SendError)?;
+
+        // send event to channel, but only if it's less than 50% full, drop it otherwise. Block and
+        // pool observations are more important, so we make sure there's room for them.
+        let relative_capacity = tx.capacity() as f32 / tx.max_capacity() as f32;
+        if relative_capacity > 0.5 {
+            tx.send(event).await.map_err(WatchError::SendError)?;
+        }
     }
     Err(WatchError::StreamEndedError)
 }
@@ -181,6 +187,11 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
                 }
                 let beacon_block =
                     BeaconBlock::new(beacon_block_without_root.unwrap(), event.block);
+
+                let relative_capacity = tx.capacity() as f32 / tx.max_capacity() as f32;
+                if relative_capacity < 0.1 {
+                    log::warn!("event channel is getting full, blocks might arrive late");
+                }
 
                 if let Err(e) = tx
                     .send(Event::NewHead {
