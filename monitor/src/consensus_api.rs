@@ -1,5 +1,6 @@
 use crate::types::{BeaconBlockWithoutRoot, Bytes, SignedMessage, Transaction, H256, U256};
 use hex;
+use rlp::Decodable;
 use serde::Deserialize;
 use thiserror::Error;
 use url::Url;
@@ -58,7 +59,7 @@ impl ConsensusProvider {
                     description: String::from(format!("error decoding tx in block: {}", e)),
                 }
             })?;
-            let tx = rlp::decode(b.as_slice());
+            let tx = Transaction::decode(&rlp::Rlp::new(b.as_slice()));
             match tx {
                 Err(e) => log::warn!(
                     "received block {} with undecodable tx: {}",
