@@ -47,13 +47,7 @@ impl State {
             Event::NewHead {
                 beacon_block,
                 timestamp,
-            } => {
-                let start_time = Instant::now();
-                let r = self.process_new_head_event(beacon_block, timestamp).await;
-                let duration = start_time.elapsed();
-                log::info!("analysis took {}s", duration.as_secs());
-                r
-            }
+            } => self.process_new_head_event(beacon_block, timestamp).await,
             Event::TxpoolContent { content, timestamp } => {
                 self.process_txpool_content_event(content, timestamp).await
             }

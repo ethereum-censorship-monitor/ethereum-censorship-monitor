@@ -6,6 +6,7 @@ use crate::db;
 use crate::nonce_cache::NonceCache;
 use crate::pool::{Pool, TransactionWithVisibility};
 use crate::types::{BeaconBlock, TxHash};
+use std::time::{Duration, Instant};
 
 #[derive(Debug)]
 pub struct Analysis {
@@ -16,12 +17,13 @@ pub struct Analysis {
     pub num_txs_in_block: usize,
     pub num_nonce_too_big: usize,
     pub num_only_tx_hash: usize,
+    pub duration: Duration,
 }
 
 impl Analysis {
     pub fn summary(&self) -> String {
         format!(
-            "Analysis for block {}: {} txs from pool included, {} missed, {} in pool, {} in block, {} nonce too big, {} only tx hash",
+            "Analysis for block {}: {} txs from pool included, {} missed, {} in pool, {} in block, {} nonce too big, {} only tx hash, took {}s",
             self.beacon_block,
             self.included_transactions.len(),
             self.missing_transactions.len(),
@@ -29,6 +31,7 @@ impl Analysis {
             self.num_txs_in_block,
             self.num_nonce_too_big,
             self.num_only_tx_hash,
+            self.duration.as_secs(),
         )
     }
 }
@@ -38,6 +41,8 @@ pub async fn analyze(
     pool: &Pool,
     nonce_cache: &mut NonceCache,
 ) -> Analysis {
+    let start_time = Instant::now();
+
     let exec = &beacon_block.body.execution_payload;
     let txs_in_block: HashSet<&TxHash> =
         HashSet::from_iter(exec.transactions.iter().map(|tx| &tx.hash));
@@ -70,6 +75,9 @@ pub async fn analyze(
             }
         }
     }
+
+    let duration = start_time.elapsed();
+
     Analysis {
         beacon_block: beacon_block.clone(),
         missing_transactions: missing_txs,
@@ -78,6 +86,7 @@ pub async fn analyze(
         num_txs_in_block,
         num_nonce_too_big,
         num_only_tx_hash,
+        duration,
     }
 }
 
