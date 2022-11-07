@@ -49,8 +49,8 @@ pub async fn analyze(
     let mut missing_txs = HashMap::new();
     let mut included_txs = HashMap::new();
 
-    let t = exec.timestamp.as_u64();
-    let pool_at_t = pool.content_at(t);
+    let proposal_time = beacon_block.proposal_time();
+    let pool_at_t = pool.content_at(proposal_time);
     let num_txs_in_pool = pool_at_t.len();
     let num_txs_in_block = exec.transactions.len();
     let mut num_nonce_too_big = 0;
