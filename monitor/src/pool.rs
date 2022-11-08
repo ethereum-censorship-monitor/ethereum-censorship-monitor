@@ -1,13 +1,13 @@
 use ethers::types::TxpoolContent;
 use std::collections::{HashMap, HashSet};
 
-use crate::types::{Timestamp, TxHash, TxpoolTransaction};
+use crate::types::{Timestamp, Transaction, TxHash};
 use crate::visibility::{Observation, Observations, Visibility};
 
 #[derive(Debug)]
 pub struct TransactionWithVisibility {
     pub hash: TxHash,
-    pub transaction: Option<TxpoolTransaction>,
+    pub transaction: Option<Transaction>,
     pub visibility: Visibility,
 }
 
@@ -17,7 +17,7 @@ pub struct TransactionWithVisibility {
 pub struct Pool {
     last_content: HashSet<TxHash>,
     tx_obs: HashMap<TxHash, Observations>,
-    txs: HashMap<TxHash, TxpoolTransaction>,
+    txs: HashMap<TxHash, Transaction>,
 }
 
 impl Pool {
@@ -34,7 +34,7 @@ impl Pool {
     /// invocation (or intermediate additions via pre_announce_transaction) are observed as
     /// NotSeen.
     pub fn observe(&mut self, timestamp: Timestamp, content: TxpoolContent) {
-        let mut txs: HashMap<TxHash, &TxpoolTransaction> = HashMap::new();
+        let mut txs: HashMap<TxHash, &Transaction> = HashMap::new();
         for v in content.pending.values().chain(content.queued.values()) {
             for tx in v.values() {
                 txs.insert(tx.hash, tx);
@@ -140,7 +140,7 @@ impl Pool {
 mod test {
     use std::collections::BTreeMap;
 
-    use ethers::types::{Address, Bytes, U256};
+    use ethers::types::Address;
 
     use super::*;
 
@@ -154,19 +154,8 @@ mod test {
         let mut txs = BTreeMap::new();
         let address = Address::repeat_byte(0);
         for (i, h) in hashes.iter().enumerate() {
-            let tx = TxpoolTransaction {
-                block_hash: None,
-                block_number: None,
-                from: None,
-                gas: None,
-                gas_price: None,
-                hash: *h,
-                input: Bytes::from([]),
-                nonce: U256::from(0),
-                to: None,
-                transaction_index: None,
-                value: U256::from(0),
-            };
+            let mut tx = Transaction::default();
+            tx.hash = *h;
             txs.insert(i.to_string(), tx);
         }
         pending.insert(address, txs);

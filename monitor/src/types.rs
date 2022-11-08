@@ -3,7 +3,7 @@ use serde::Deserialize;
 use std::fmt;
 
 pub use ethers::types::{
-    Address, Block, Bytes, Transaction, TxHash, TxpoolContent, TxpoolTransaction, H256, U256, U64,
+    Address, Block, Bytes, Transaction, TxHash, TxpoolContent, H256, U256, U64,
 };
 pub type Timestamp = u64;
 

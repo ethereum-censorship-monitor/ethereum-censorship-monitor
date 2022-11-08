@@ -4,17 +4,7 @@ use crate::nonce_cache::{NonceCache, NonceCacheError};
 use crate::pool::Pool;
 use crate::types::{BeaconBlock, Timestamp, TxHash, TxpoolContent};
 use crate::watch::{Event, NodeConfig};
-use ethers::providers::ProviderError;
 use ethers::types::Transaction;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum StateError {
-    #[error("{0}")]
-    NonceCacheError(NonceCacheError),
-    #[error("{0}")]
-    ProviderError(ProviderError),
-}
 
 pub struct State {
     pool: Pool,
@@ -37,17 +27,20 @@ impl State {
         }
     }
 
-    pub async fn process_event(&mut self, event: Event) -> Option<Analysis> {
+    pub async fn process_event(
+        &mut self,
+        event: Event,
+    ) -> Result<Option<Analysis>, NonceCacheError> {
         match event {
             Event::NewTransaction { hash, timestamp } => {
-                self.process_new_transaction_event(hash, timestamp).await
+                Ok(self.process_new_transaction_event(hash, timestamp).await)
             }
             Event::NewHead {
                 beacon_block,
                 timestamp,
             } => self.process_new_head_event(beacon_block, timestamp).await,
             Event::TxpoolContent { content, timestamp } => {
-                self.process_txpool_content_event(content, timestamp).await
+                Ok(self.process_txpool_content_event(content, timestamp).await)
             }
         }
     }
@@ -74,7 +67,7 @@ impl State {
         &mut self,
         beacon_block: BeaconBlock<Transaction>,
         t: Timestamp,
-    ) -> Option<Analysis> {
+    ) -> Result<Option<Analysis>, NonceCacheError> {
         log::info!("processing block {}", beacon_block);
         self.head_history.observe(t, beacon_block.clone());
         self.nonce_cache.apply_block(beacon_block.clone());
@@ -87,7 +80,7 @@ impl State {
                     "skipping analysis as head block at proposal time {} is unknown",
                     proposal_time
                 );
-                return None;
+                return Ok(None);
             }
             Some(parent_observation) => {
                 if parent_observation.head.root != beacon_block.parent_root {
@@ -98,11 +91,12 @@ impl State {
                         beacon_block.parent_root,
                         parent_observation.head,
                     );
-                    return None;
+                    return Ok(None);
                 }
             }
         }
 
-        Some(analyze(&beacon_block, &self.pool, &mut self.nonce_cache).await)
+        let analysis = analyze(&beacon_block, &self.pool, &mut self.nonce_cache).await;
+        analysis.map(Some)
     }
 }
