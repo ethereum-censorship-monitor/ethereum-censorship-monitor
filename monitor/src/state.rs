@@ -27,20 +27,17 @@ impl State {
         }
     }
 
-    pub async fn process_event(
-        &mut self,
-        event: Event,
-    ) -> Result<Option<Analysis>, NonceCacheError> {
+    pub async fn process_event(&mut self, event: Event) -> Option<Analysis> {
         match event {
             Event::NewTransaction { hash, timestamp } => {
-                Ok(self.process_new_transaction_event(hash, timestamp).await)
+                self.process_new_transaction_event(hash, timestamp).await
             }
             Event::NewHead {
                 beacon_block,
                 timestamp,
             } => self.process_new_head_event(beacon_block, timestamp).await,
             Event::TxpoolContent { content, timestamp } => {
-                Ok(self.process_txpool_content_event(content, timestamp).await)
+                self.process_txpool_content_event(content, timestamp).await
             }
         }
     }
@@ -67,7 +64,7 @@ impl State {
         &mut self,
         beacon_block: BeaconBlock<Transaction>,
         t: Timestamp,
-    ) -> Result<Option<Analysis>, NonceCacheError> {
+    ) -> Option<Analysis> {
         log::info!("processing block {}", beacon_block);
         self.head_history.observe(t, beacon_block.clone());
         self.nonce_cache.apply_block(beacon_block.clone());
@@ -80,7 +77,7 @@ impl State {
                     "skipping analysis as head block at proposal time {} is unknown",
                     proposal_time
                 );
-                return Ok(None);
+                return None;
             }
             Some(parent_observation) => {
                 if parent_observation.head.root != beacon_block.parent_root {
@@ -91,12 +88,18 @@ impl State {
                         beacon_block.parent_root,
                         parent_observation.head,
                     );
-                    return Ok(None);
+                    return None;
                 }
             }
         }
 
         let analysis = analyze(&beacon_block, &self.pool, &mut self.nonce_cache).await;
-        analysis.map(Some)
+        match analysis {
+            Ok(a) => Some(a),
+            Err(e) => {
+                log::error!("error analysing block: {}", e);
+                None
+            }
+        }
     }
 }

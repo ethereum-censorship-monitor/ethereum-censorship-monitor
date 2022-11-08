@@ -28,11 +28,9 @@ impl NodeConfig {
     }
 
     /// Create and connect a websocket provider for the node at ws_url.
-    pub async fn ws_provider(&self) -> Result<Provider<Ws>, WatchError> {
+    pub async fn ws_provider(&self) -> Result<Provider<Ws>, ProviderError> {
         let url = self.ws_url.as_str();
-        Provider::connect(url)
-            .await
-            .map_err(WatchError::ProviderError)
+        Provider::connect(url).await
     }
 
     /// Create and connect a consensus node provider for the node at consensus_http_url.
@@ -84,20 +82,23 @@ impl Event {
 
 #[derive(Error, Debug)]
 pub enum WatchError {
-    #[error("stream ended unexpectedly")]
+    #[error("event stream ended unexpectedly")]
     StreamEndedError,
-    #[error("{0}")]
-    SendError(tokio::sync::mpsc::error::SendError<Event>),
-    #[error("{0}")]
-    ProviderError(ethers::providers::ProviderError),
-    #[error("{0}")]
-    JoinError(tokio::task::JoinError),
-    #[error("{0}")]
+    #[error("failed to send event to channel")]
+    SendError(#[from] tokio::sync::mpsc::error::SendError<Event>),
+    #[error("error from execution client")]
+    ProviderError(#[from] ethers::providers::ProviderError),
+    #[error("error joining tasks")]
+    JoinError(#[from] tokio::task::JoinError),
+    #[error("error listening to blocks from event source")]
     ReqwestEventsourceError(reqwest_eventsource::Error),
-    #[error("{0}")]
-    JSONError(serde_json::Error),
-    #[error("{0}")]
-    ConsensusAPIError(ConsensusAPIError),
+    #[error("received invalid JSON data")]
+    JSONError {
+        data: String,
+        source: serde_json::Error,
+    },
+    #[error("error from consensus client")]
+    ConsensusAPIError(#[from] ConsensusAPIError),
 }
 
 /// Get the current timestamp, i.e. number of seconds since unix epoch.
@@ -127,7 +128,7 @@ pub async fn watch(node_config: &NodeConfig, tx: Sender<Event>) -> Result<(), Wa
     };
     match r {
         Ok(r) => r,
-        Err(e) => Err(WatchError::JoinError(e)),
+        Err(e) => Err(WatchError::from(e)),
     }
 }
 
@@ -139,7 +140,7 @@ pub async fn watch_transactions(
     let mut stream = ws_provider
         .subscribe_pending_txs()
         .await
-        .map_err(WatchError::ProviderError)?;
+        .map_err(WatchError::from)?;
 
     while let Some(hash) = stream.next().await {
         let event = Event::NewTransaction {
@@ -176,7 +177,10 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
                     serde_json::from_str(message.data.as_str());
                 if let Err(e) = event {
                     es.close();
-                    return Err(WatchError::JSONError(e));
+                    return Err(WatchError::JSONError {
+                        source: e,
+                        data: message.data,
+                    });
                 }
                 let event = event.unwrap();
 
@@ -213,7 +217,7 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
         let content = exec_provider
             .txpool_content()
             .await
-            .map_err(WatchError::ProviderError)?;
+            .map_err(WatchError::from)?;
         let event = Event::TxpoolContent {
             content,
             timestamp: get_current_timestamp(),

@@ -7,9 +7,12 @@ use url::Url;
 
 #[derive(Error, Debug)]
 pub enum ConsensusAPIError {
-    #[error("{0}")]
-    ReqwestError(reqwest::Error),
-    #[error("unexpected response: {description}")]
+    #[error("error fetching {requested}")]
+    ReqwestError {
+        source: reqwest::Error,
+        requested: String,
+    },
+    #[error("unexpected node response: {description}")]
     UnexpectedResponse { description: String },
 }
 
@@ -37,13 +40,25 @@ impl ConsensusProvider {
             .http_url
             .join(format!("/eth/v1/beacon/blocks/0x{}", hex::encode(root)).as_str())
             .unwrap();
+
         let r = reqwest::get(url)
             .await
-            .map_err(ConsensusAPIError::ReqwestError)?
+            .map_err(|e| ConsensusAPIError::ReqwestError {
+                source: e,
+                requested: String::from("beacon block"),
+            })?
             .error_for_status()
-            .map_err(ConsensusAPIError::ReqwestError)?;
-        let response: ConsensusAPIResponse<SignedMessage<BeaconBlockWithoutRoot<String>>> =
-            r.json().await.map_err(ConsensusAPIError::ReqwestError)?;
+            .map_err(|e| ConsensusAPIError::ReqwestError {
+                source: e,
+                requested: String::from("beacon block"),
+            })?;
+        let response: ConsensusAPIResponse<SignedMessage<BeaconBlockWithoutRoot<String>>> = r
+            .json()
+            .await
+            .map_err(|e| ConsensusAPIError::ReqwestError {
+                source: e,
+                requested: String::from("beacon block"),
+            })?;
 
         if response.execution_optimistic {
             return Err(ConsensusAPIError::UnexpectedResponse {

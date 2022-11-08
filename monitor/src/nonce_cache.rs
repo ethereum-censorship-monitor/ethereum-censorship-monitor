@@ -12,9 +12,9 @@ pub struct NonceCache {
 
 #[derive(Debug, Error)]
 pub enum NonceCacheError {
-    #[error("provider error: {0}")]
-    ProviderError(ProviderError),
-    #[error("queried cache at block hash {queried} instead of {internal}")]
+    #[error("failed to fetch nonce")]
+    ProviderError(#[from] ProviderError),
+    #[error("nonce cache is at block hash {internal}, but was queried at {queried}")]
     WrongBlockError { internal: H256, queried: H256 },
 }
 

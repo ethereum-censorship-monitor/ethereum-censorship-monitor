@@ -42,9 +42,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let process_handle = tokio::spawn(async move {
         while let Some(event) = event_rx.recv().await {
             match state.process_event(event).await {
-                Ok(Some(analysis)) => log::info!("{}", analysis.summary()),
-                Ok(None) => {}
-                Err(e) => log::error!("error processing event: {}", e),
+                Some(analysis) => log::info!("{}", analysis.summary()),
+                None => {}
             }
         }
     });

@@ -1,45 +1,12 @@
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
+use thiserror::Error;
 
 use crate::db;
 use crate::nonce_cache::{NonceCache, NonceCacheError};
 use crate::pool::{Pool, TransactionWithVisibility};
 use crate::types::{BeaconBlock, ExecutionPayload, Transaction, TxHash, U256, U64};
 use std::time::{Duration, Instant};
-
-/// Return the fields a transaction misses which prevents us from analyzing it, if any.
-fn get_missing_transaction_fields(transaction: &Transaction) -> Option<Vec<String>> {
-    let mut missing_fields = Vec::new();
-
-    if transaction.transaction_type.is_none() {
-        missing_fields.push(String::from("type"));
-    } else {
-        let transaction_type = transaction.transaction_type.unwrap();
-        if transaction_type == U64::from(0) || transaction_type == U64::from(1) {
-            if transaction.gas_price.is_none() {
-                missing_fields.push(String::from("gasPrice"))
-            }
-        } else if transaction_type == U64::from(2) {
-            if transaction.max_fee_per_gas.is_none() {
-                missing_fields.push(String::from("maxFeePerGas"))
-            }
-            if transaction.max_priority_fee_per_gas.is_none() {
-                missing_fields.push(String::from("maxPriorityFeePerGas"))
-            }
-        }
-    }
-
-    if missing_fields.len() > 0 {
-        Some(missing_fields)
-    } else {
-        None
-    }
-}
-
-/// Check that the transaction type is supported (i.e. 0, 1, or 2)
-fn check_supported_type(transaction: &Transaction) -> bool {
-    transaction.transaction_type.unwrap() <= U64::from(2)
-}
 
 /// Possible justified reasons why a transaction is not in a block.
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -50,35 +17,80 @@ pub enum NonInclusionReason {
     NonceMismatch,
 }
 
-/// Perform all inclusion checks except for nonce mismatch.
-fn check_inclusion_without_nonce(
+#[derive(Debug, Error)]
+enum InclusionCheckError {
+    #[error("cannot check inclusion as transaction is missing required field")]
+    TransactionError(#[from] TransactionError),
+    #[error("cannot check inclusion due to nonce cache error")]
+    NonceCacheError(#[from] NonceCacheError),
+}
+
+#[derive(Debug, Error)]
+enum TransactionError {
+    #[error("transaction is missing required field {name}")]
+    MissingRequiredField { name: String },
+    #[error("transaction has type {transaction_type} which is not supported")]
+    UnsupportedType { transaction_type: u64 },
+}
+
+/// Perform all inclusion checks.
+async fn check_inclusion(
     transaction: &Transaction,
-    exec: &ExecutionPayload<Transaction>,
-) -> Option<NonInclusionReason> {
+    beacon_block: &BeaconBlock<Transaction>,
+    nonce_cache: &mut NonceCache,
+) -> Result<Option<NonInclusionReason>, InclusionCheckError> {
+    let exec = &beacon_block.body.execution_payload;
     if check_not_enough_space(transaction, exec) {
-        Some(NonInclusionReason::NotEnoughSpace)
-    } else if check_base_fee_too_low(transaction, exec) {
-        Some(NonInclusionReason::BaseFeeTooLow)
-    } else if check_tip_too_low(transaction, exec) {
-        Some(NonInclusionReason::TipTooLow)
+        Ok(Some(NonInclusionReason::NotEnoughSpace))
+    } else if check_base_fee_too_low(transaction, exec)? {
+        Ok(Some(NonInclusionReason::BaseFeeTooLow))
+    } else if check_tip_too_low(transaction, exec)? {
+        Ok(Some(NonInclusionReason::TipTooLow))
+    } else if check_nonce_mismatch(transaction, beacon_block, nonce_cache).await? {
+        Ok(Some(NonInclusionReason::NonceMismatch))
     } else {
-        None
+        Ok(None)
     }
 }
 
-/// Calculate the tip amount a transaction would pay in a block with given base fee. Panics if
-/// required transaction fields are missing.
-fn get_tip(transaction: &Transaction, base_fee: U256) -> U256 {
-    let t = transaction.transaction_type.unwrap();
-    if t == U64::from(0) || t == U64::from(1) {
-        transaction.gas_price.unwrap() - base_fee
-    } else if t == U64::from(2) {
-        min(
-            transaction.max_fee_per_gas.unwrap() - base_fee,
-            transaction.max_priority_fee_per_gas.unwrap(),
-        )
+/// Get the type of the transaction or an error if it is not specified.
+fn get_transaction_type(transaction: &Transaction) -> Result<u64, TransactionError> {
+    match transaction.transaction_type {
+        Some(t) => Ok(t.as_u64()),
+        None => Err(TransactionError::MissingRequiredField {
+            name: String::from("type"),
+        }),
+    }
+}
+
+/// Calculate the tip amount a transaction would pay in a block with given base fee.
+fn get_tip(transaction: &Transaction, base_fee: U256) -> Result<U256, TransactionError> {
+    let t = get_transaction_type(transaction)?;
+    if t == 0 || t == 1 {
+        let gas_price = transaction
+            .gas_price
+            .ok_or(TransactionError::MissingRequiredField {
+                name: String::from("gasPrice"),
+            })?;
+        Ok(gas_price - base_fee)
+    } else if t == 2 {
+        let max_fee_per_gas =
+            transaction
+                .max_fee_per_gas
+                .ok_or(TransactionError::MissingRequiredField {
+                    name: String::from("maxFeePerGas"),
+                })?;
+        let max_priority_fee_per_gas =
+            transaction
+                .max_priority_fee_per_gas
+                .ok_or(TransactionError::MissingRequiredField {
+                    name: String::from("maxPriorityFeePerGas"),
+                })?;
+        Ok(min(max_fee_per_gas - base_fee, max_priority_fee_per_gas))
     } else {
-        panic!("unsupported transaction type {}", t)
+        Err(TransactionError::UnsupportedType {
+            transaction_type: t,
+        })
     }
 }
 
@@ -88,29 +100,42 @@ fn check_not_enough_space(transaction: &Transaction, exec: &ExecutionPayload<Tra
     transaction.gas > U256::from(unused_gas.as_u64())
 }
 
-/// Check if the transaction doesn't pay a high enough base fee. Panics if required transaction
-/// fields are missing.
-fn check_base_fee_too_low(transaction: &Transaction, exec: &ExecutionPayload<Transaction>) -> bool {
-    let t = transaction.transaction_type.unwrap();
-    let max_base_fee = if t == U64::from(0) || t == U64::from(1) {
-        transaction.gas_price.unwrap()
-    } else if t == U64::from(2) {
-        transaction.max_fee_per_gas.unwrap()
+/// Check if the transaction doesn't pay a high enough base fee.
+fn check_base_fee_too_low(
+    transaction: &Transaction,
+    exec: &ExecutionPayload<Transaction>,
+) -> Result<bool, TransactionError> {
+    let t = get_transaction_type(transaction)?;
+    let max_base_fee = if t == 0 || t == 1 {
+        transaction
+            .gas_price
+            .ok_or(TransactionError::MissingRequiredField {
+                name: String::from("gasPrice"),
+            })?
+    } else if t == 2 {
+        transaction
+            .max_fee_per_gas
+            .ok_or(TransactionError::MissingRequiredField {
+                name: String::from("maxFeePerGas"),
+            })?
     } else {
-        U256::zero()
+        return Err(TransactionError::UnsupportedType {
+            transaction_type: t,
+        });
     };
-    max_base_fee < exec.base_fee_per_gas
+    Ok(max_base_fee < exec.base_fee_per_gas)
 }
 
-/// Check if the transaction doesn't pay a high enough tip. Panics if required transaction
-/// fields are missing.
-fn check_tip_too_low(transaction: &Transaction, exec: &ExecutionPayload<Transaction>) -> bool {
+/// Check if the transaction doesn't pay a high enough tip.
+fn check_tip_too_low(
+    transaction: &Transaction,
+    exec: &ExecutionPayload<Transaction>,
+) -> Result<bool, TransactionError> {
     let min_tip = get_min_tip(&exec.transactions, exec.base_fee_per_gas);
-    get_tip(transaction, exec.base_fee_per_gas) < min_tip
+    Ok(get_tip(transaction, exec.base_fee_per_gas)? < min_tip)
 }
 
-/// Check if there is a mismatch between transaction and account nonce. Panics if required
-/// transaction fields are missing.
+/// Check if there is a mismatch between transaction and account nonce.
 async fn check_nonce_mismatch(
     transaction: &Transaction,
     beacon_block: &BeaconBlock<Transaction>,
@@ -125,8 +150,7 @@ async fn check_nonce_mismatch(
 fn get_min_tip(transactions: &Vec<Transaction>, base_fee: U256) -> U256 {
     transactions
         .iter()
-        .filter(|tx| get_missing_transaction_fields(tx).is_none())
-        .map(|tx| get_tip(tx, base_fee))
+        .filter_map(|tx| get_tip(tx, base_fee).ok())
         .min()
         .unwrap_or(U256::MAX)
 }
@@ -186,30 +210,29 @@ pub async fn analyze(
     for (hash, tx_with_vis) in pool_at_t {
         if txs_in_block.contains(&hash) {
             included_txs.insert(hash, tx_with_vis);
-        } else {
-            if let Some(ref tx) = tx_with_vis.transaction {
-                if let Some(missing_fields) = get_missing_transaction_fields(tx) {
-                    log::warn!(
-                        "skipping transaction with missing required fields {}: {:?}",
-                        missing_fields.join(", "),
-                        tx
-                    );
-                } else if !check_supported_type(tx) {
-                    log::warn!(
-                        "skipping transaction with unsupported type {}",
-                        tx.transaction_type.unwrap()
-                    );
-                } else if let Some(reason) = check_inclusion_without_nonce(tx, exec) {
-                    *non_inclusion_reasons.entry(reason).or_insert(0) += 1;
-                } else if check_nonce_mismatch(tx, beacon_block, nonce_cache).await? {
-                    *non_inclusion_reasons
-                        .entry(NonInclusionReason::NonceMismatch)
-                        .or_insert(0) += 1;
-                } else {
-                    missing_txs.insert(hash, tx_with_vis);
-                }
-            } else {
-                num_only_tx_hash += 1;
+            continue;
+        }
+        if tx_with_vis.transaction.is_none() {
+            num_only_tx_hash += 1;
+            continue;
+        }
+        let tx = tx_with_vis.transaction.as_ref().unwrap();
+
+        match check_inclusion(&tx, beacon_block, nonce_cache).await {
+            Ok(Some(reason)) => *non_inclusion_reasons.entry(reason).or_insert(0) += 1,
+            Ok(None) => {
+                missing_txs.insert(hash, tx_with_vis);
+            }
+            Err(InclusionCheckError::TransactionError(e)) => {
+                log::warn!(
+                    "failed to check inclusion criteria for tx {}: {} (tx: {:?})",
+                    tx.hash,
+                    e,
+                    tx,
+                )
+            }
+            Err(InclusionCheckError::NonceCacheError(e)) => {
+                return Err(e);
             }
         }
     }
