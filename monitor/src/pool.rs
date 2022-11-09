@@ -34,10 +34,20 @@ impl Pool {
     /// invocation (or intermediate additions via pre_announce_transaction) are observed as
     /// NotSeen.
     pub fn observe(&mut self, timestamp: Timestamp, content: TxpoolContent) {
+        let mut num_new = 0;
+        let mut num_backfills = 0;
+
         let mut txs: HashMap<TxHash, &Transaction> = HashMap::new();
         for v in content.pending.values().chain(content.queued.values()) {
             for tx in v.values() {
-                txs.insert(tx.hash, tx);
+                let r = txs.insert(tx.hash, tx);
+                if r.is_none() {
+                    if self.tx_obs.contains_key(&tx.hash) {
+                        num_backfills += 1;
+                    } else {
+                        num_new += 1;
+                    }
+                }
             }
         }
         let hashes: HashSet<TxHash> = txs.keys().copied().collect();
@@ -47,14 +57,10 @@ impl Pool {
         self.last_content = hashes;
 
         // insert txs from pool as Seen
-        let mut num_new = 0;
         for hash in &self.last_content {
             self.tx_obs
                 .entry(hash.clone())
-                .or_insert_with(|| {
-                    num_new += 1;
-                    Observations::new()
-                })
+                .or_insert_with(Observations::new)
                 .insert(Observation::Seen(timestamp));
             self.txs.insert(*hash, (*txs.get(hash).unwrap()).clone());
         }
@@ -67,12 +73,14 @@ impl Pool {
         }
 
         log::debug!(
-            "observed pool at timestamp {} with {} txs ({} insertions, {} unseen, {} total entries)",
+            "observed pool at timestamp {} with {} txs ({} new, {} backfills, {} unseen, {} total entries, {} only hashes)",
             timestamp,
             self.last_content.len(),
             num_new,
+            num_backfills,
             unseen_hashes.len(),
             self.tx_obs.len(),
+            self.tx_obs.len() - self.txs.len(),
         );
     }
 
