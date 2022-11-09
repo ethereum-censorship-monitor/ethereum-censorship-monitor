@@ -83,7 +83,11 @@ impl ConsensusProvider {
                     hex::encode(keccak256(b)),
                     e,
                 ),
-                Ok(tx) => txs.push(tx),
+                Ok(mut tx) => {
+                    // set tx hash manually (see https://github.com/gakonst/ethers-rs/issues/1849)
+                    tx.hash = H256::from(keccak256(b));
+                    txs.push(tx);
+                }
             }
         }
         let beacon_block = BeaconBlockWithoutRoot::with_transactions(response.data.message, txs);
