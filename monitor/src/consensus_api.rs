@@ -1,4 +1,5 @@
 use crate::types::{BeaconBlockWithoutRoot, Bytes, SignedMessage, Transaction, H256, U256};
+use ethers::utils::keccak256;
 use hex;
 use rlp::Decodable;
 use serde::Deserialize;
@@ -38,7 +39,7 @@ impl ConsensusProvider {
     ) -> Result<BeaconBlockWithoutRoot<Transaction>, ConsensusAPIError> {
         let url = self
             .http_url
-            .join(format!("/eth/v1/beacon/blocks/0x{}", hex::encode(root)).as_str())
+            .join(format!("/eth/v2/beacon/blocks/0x{}", hex::encode(root)).as_str())
             .unwrap();
 
         let r = reqwest::get(url)
@@ -77,9 +78,10 @@ impl ConsensusProvider {
             let tx = Transaction::decode(&rlp::Rlp::new(b.as_slice()));
             match tx {
                 Err(e) => log::warn!(
-                    "received block {} with undecodable tx: {}",
+                    "received block {} with undecodable tx 0x{}: {}",
                     response.data.message,
-                    e
+                    hex::encode(keccak256(b)),
+                    e,
                 ),
                 Ok(tx) => txs.push(tx),
             }

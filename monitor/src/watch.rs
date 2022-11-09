@@ -91,7 +91,7 @@ pub enum WatchError {
     #[error("error joining tasks")]
     JoinError(#[from] tokio::task::JoinError),
     #[error("error listening to blocks from event source")]
-    ReqwestEventsourceError(reqwest_eventsource::Error),
+    ReqwestEventsourceError(#[from] reqwest_eventsource::Error),
     #[error("received invalid JSON data")]
     JSONError {
         data: String,
@@ -187,7 +187,7 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
                 let beacon_block_without_root = cons_provider.fetch_beacon_block(event.block).await;
                 if let Err(e) = beacon_block_without_root {
                     es.close();
-                    return Err(WatchError::ConsensusAPIError(e));
+                    return Err(WatchError::from(e));
                 }
                 let beacon_block =
                     BeaconBlock::new(beacon_block_without_root.unwrap(), event.block);
@@ -205,12 +205,12 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
                     .await
                 {
                     es.close();
-                    return Err(WatchError::SendError(e));
+                    return Err(WatchError::from(e));
                 }
             }
             Err(e) => {
                 es.close();
-                return Err(WatchError::ReqwestEventsourceError(e));
+                return Err(WatchError::from(e));
             }
         }
 
@@ -222,7 +222,7 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
             content,
             timestamp: get_current_timestamp(),
         };
-        tx.send(event).await.map_err(WatchError::SendError)?;
+        tx.send(event).await?;
     }
     Err(WatchError::StreamEndedError)
 }
