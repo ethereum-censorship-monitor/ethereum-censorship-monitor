@@ -41,9 +41,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let process_handle = tokio::spawn(async move {
         while let Some(event) = event_rx.recv().await {
-            match state.process_event(event).await {
-                Some(analysis) => log::info!("{}", analysis.summary()),
-                None => {}
+            let analyses = state.process_event(event).await;
+            for analysis in analyses {
+                log::info!("{}", analysis.summary());
             }
         }
     });

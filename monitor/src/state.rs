@@ -10,6 +10,8 @@ pub struct State {
     pool: Pool,
     head_history: HeadHistory,
     nonce_cache: NonceCache,
+
+    analysis_queue: Vec<BeaconBlock<Transaction>>,
 }
 
 impl State {
@@ -24,10 +26,12 @@ impl State {
             pool,
             head_history,
             nonce_cache,
+
+            analysis_queue: Vec::new(),
         }
     }
 
-    pub async fn process_event(&mut self, event: Event) -> Option<Analysis> {
+    pub async fn process_event(&mut self, event: Event) -> Vec<Analysis> {
         match event {
             Event::NewTransaction { hash, timestamp } => {
                 self.process_new_transaction_event(hash, timestamp).await
@@ -42,51 +46,66 @@ impl State {
         }
     }
 
-    async fn process_new_transaction_event(
-        &mut self,
-        hash: TxHash,
-        t: Timestamp,
-    ) -> Option<Analysis> {
+    async fn process_new_transaction_event(&mut self, hash: TxHash, t: Timestamp) -> Vec<Analysis> {
         self.pool.pre_announce_transaction(t, hash);
-        None
+        Vec::new()
     }
 
     async fn process_txpool_content_event(
         &mut self,
         content: TxpoolContent,
         t: Timestamp,
-    ) -> Option<Analysis> {
+    ) -> Vec<Analysis> {
         self.pool.observe(t, content);
-        None
+
+        let beacon_blocks = self.analysis_queue.clone();
+        self.analysis_queue.clear();
+
+        let mut analyses = Vec::new();
+        for beacon_block in beacon_blocks {
+            let analysis = self.analyse_beacon_block(&beacon_block).await;
+            if let Some(analysis) = analysis {
+                analyses.push(analysis);
+            }
+        }
+        analyses
     }
 
     async fn process_new_head_event(
         &mut self,
         beacon_block: BeaconBlock<Transaction>,
         t: Timestamp,
-    ) -> Option<Analysis> {
-        log::info!("processing block {}", beacon_block);
+    ) -> Vec<Analysis> {
         self.head_history.observe(t, beacon_block.clone());
+        self.analysis_queue.push(beacon_block);
+        Vec::new()
+    }
+
+    async fn analyse_beacon_block(
+        &mut self,
+        beacon_block: &BeaconBlock<Transaction>,
+    ) -> Option<Analysis> {
         self.nonce_cache.apply_block(beacon_block.clone());
 
         let proposal_time = beacon_block.proposal_time();
-        let parent = self.head_history.at(proposal_time);
-        match parent {
+        let head_obs = self.head_history.at(proposal_time);
+        match head_obs {
             None => {
                 log::info!(
-                    "skipping analysis as head block at proposal time {} is unknown",
+                    "skipping analysis of {} as head block at proposal time {} is unknown",
+                    beacon_block,
                     proposal_time
                 );
                 return None;
             }
-            Some(parent_observation) => {
-                if parent_observation.head.root != beacon_block.parent_root {
+            Some(head_obs) => {
+                if head_obs.head.root != beacon_block.parent_root {
                     log::info!(
-                        "skipping analysis due to head mismatch at proposal time (block: {}, \
-                        parent: {}, head at proposal time: {})",
+                        "skipping analysis of {} due to head mismatch at proposal time (parent: {},
+                        head at proposal time: {})",
                         beacon_block,
                         beacon_block.parent_root,
-                        parent_observation.head,
+                        head_obs.head,
                     );
                     return None;
                 }
@@ -97,7 +116,7 @@ impl State {
         match analysis {
             Ok(a) => Some(a),
             Err(e) => {
-                log::error!("error analysing block: {}", e);
+                log::error!("error analyzing block: {}", e);
                 None
             }
         }
