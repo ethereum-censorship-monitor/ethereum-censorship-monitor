@@ -1,38 +1,36 @@
-use crate::types::{Timestamp, TxHash, H256};
+use crate::analyze::Analysis;
+use tokio_postgres::error::Error as PostgresError;
+use tokio_postgres::Client;
 
-pub mod memory;
+pub async fn insert_analysis_into_db(
+    analysis: &Analysis,
+    client: &Client,
+) -> Result<(), PostgresError> {
+    log::debug!("persisting analysis for block {}", analysis.beacon_block);
 
-pub trait DB {
-    type Error;
+    let insert_transaction_statement = client
+        .prepare("INSERT INTO transaction VALUES ($1) ON CONFLICT DO NOTHING;")
+        .await?;
+    let insert_beacon_block_statement = client
+        .prepare("INSERT INTO beacon_block VALUES ($1) ON CONFLICT DO NOTHING;")
+        .await?;
+    let insert_miss_statement = client
+        .prepare("INSERT INTO miss VALUES ($1, $2) ON CONFLICT DO NOTHING;")
+        .await?;
 
-    fn insert_tx(&mut self, tx: Tx) -> Result<(), Self::Error>;
+    let beacon_root = &analysis.beacon_block.root.to_string();
+    client
+        .execute(&insert_beacon_block_statement, &[&beacon_root.to_string()])
+        .await?;
 
-    fn insert_block(&mut self, block: Block) -> Result<(), Self::Error>;
-
-    fn insert_miss(&mut self, miss: Miss) -> Result<(), Self::Error>;
-
-    fn insert_validator(&mut self, validator: Validator) -> Result<(), Self::Error>;
-}
-
-#[derive(Debug)]
-pub struct Tx {
-    pub hash: TxHash,
-}
-
-#[derive(Debug)]
-pub struct Block {
-    pub hash: H256,
-    pub proposer_index: u64,
-}
-
-#[derive(Debug)]
-pub struct Miss {
-    pub tx: TxHash,
-    pub block: H256,
-    pub delay: Timestamp,
-}
-
-#[derive(Debug)]
-pub struct Validator {
-    pub index: u64,
+    for (_, tx) in &analysis.missing_transactions {
+        let tx_hash = &tx.hash.to_string();
+        client
+            .execute(&insert_transaction_statement, &[tx_hash])
+            .await?;
+        client
+            .execute(&insert_miss_statement, &[tx_hash, beacon_root])
+            .await?;
+    }
+    Ok(())
 }

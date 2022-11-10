@@ -11,12 +11,13 @@ mod watch;
 
 use clap::Parser;
 use figment::{
-    providers::{Env, Format, Serialized, Toml},
+    providers::{Env, Format, Toml},
     Figment,
 };
 use serde::Deserialize;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
+use tokio_postgres::NoTls;
 
 /// Monitor Ethereum for validators not including valid transactions.
 #[derive(Parser, Debug)]
@@ -32,6 +33,10 @@ struct Config {
     execution_http_url: String,
     execution_ws_url: String,
     consensus_http_url: String,
+
+    #[serde(default)]
+    db_enabled: bool,
+    db_connection: Option<String>,
 }
 
 #[tokio::main]
@@ -50,6 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         execution_ws_url: url::Url::parse(&config.execution_ws_url)?,
         consensus_http_url: url::Url::parse(&config.consensus_http_url)?,
     };
+    let mut state = state::State::new(&node_config);
 
     let (event_tx, mut event_rx): (Sender<watch::Event>, Receiver<watch::Event>) =
         mpsc::channel(100);
@@ -62,22 +68,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     log::info!("node connection is up");
 
-    let mut state = state::State::new(&node_config);
-    let mut db = db::memory::MemoryDB::new();
-
     let process_handle = tokio::spawn(async move {
         while let Some(event) = event_rx.recv().await {
             let analyses = state.process_event(event).await;
             for analysis in analyses {
                 log::info!("{}", analysis.summary());
+                analysis_tx.send(analysis).await.unwrap();
             }
         }
     });
 
     let db_handle = tokio::spawn(async move {
+        if !config.db_enabled {
+            log::warn!("db is disabled, analysises will not be persisted");
+            while let Some(_) = analysis_rx.recv().await {}
+        }
         log::info!("spawning db task");
-        while let Some(analysis) = analysis_rx.recv().await {
-            analyze::insert_analysis_into_db(&analysis, &mut db).unwrap();
+
+        log::debug!(
+            "connecting to db at {}",
+            config.db_connection.as_ref().unwrap()
+        );
+        let (client, connection) =
+            tokio_postgres::connect(config.db_connection.unwrap().as_str(), NoTls)
+                .await
+                .unwrap();
+
+        let connection_handle = tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                log::error!("db connection error: {}", e);
+            }
+        });
+
+        let insert_handle = tokio::spawn(async move {
+            while let Some(analysis) = analysis_rx.recv().await {
+                db::insert_analysis_into_db(&analysis, &client)
+                    .await
+                    .unwrap();
+            }
+        });
+
+        tokio::select! {
+            _ = connection_handle => {},
+            _ = insert_handle => {},
         }
     });
 

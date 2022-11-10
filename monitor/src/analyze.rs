@@ -2,10 +2,9 @@ use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
-use crate::db;
 use crate::nonce_cache::{NonceCache, NonceCacheError};
 use crate::pool::{Pool, TransactionWithVisibility};
-use crate::types::{BeaconBlock, ExecutionPayload, Transaction, TxHash, U256, U64};
+use crate::types::{BeaconBlock, ExecutionPayload, Transaction, TxHash, U256};
 use std::time::{Duration, Instant};
 
 /// Possible justified reasons why a transaction is not in a block.
@@ -249,21 +248,4 @@ pub async fn analyze(
         non_inclusion_reasons,
         duration,
     })
-}
-
-pub fn insert_analysis_into_db<T: db::DB>(analysis: &Analysis, db: &mut T) -> Result<(), T::Error> {
-    // let block_hash = analysis.block.hash.unwrap();
-    // for (hash, tx) in &analysis.missing_transactions {
-    //     db.insert_tx(db::Tx { hash: *hash })?;
-    //     db.insert_block(db::Block {
-    //         hash: block_hash,
-    //         proposer_index: 0,
-    //     })?;
-    //     db.insert_miss(db::Miss {
-    //         tx: *hash,
-    //         block: block_hash,
-    //         delay: tx.first_seen - analysis.block.timestamp.as_u64(),
-    //     })?;
-    // }
-    Ok(())
 }
