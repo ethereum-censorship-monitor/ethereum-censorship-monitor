@@ -10,6 +10,11 @@ mod visibility;
 mod watch;
 
 use clap::Parser;
+use figment::{
+    providers::{Env, Format, Serialized, Toml},
+    Figment,
+};
+use serde::Deserialize;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -19,30 +24,38 @@ use tokio::sync::mpsc::{Receiver, Sender};
 struct Args {
     /// Path to the config file
     #[arg(short, long = "config")]
-    config_path: String,
+    config_path: Option<String>,
 }
 
-const HTTP_URL: &str = "http://1.geth.mainnet.ethnodes.brainbot.com:8545/";
-const WS_URL: &str = "ws://1.geth.mainnet.ethnodes.brainbot.com:8546/";
-const CONSENSUS_HTTP_URL: &str = "http://1.geth.mainnet.ethnodes.brainbot.com:5052/";
+#[derive(Deserialize, Debug)]
+struct Config {
+    execution_http_url: String,
+    execution_ws_url: String,
+    consensus_http_url: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     let args = Args::parse();
-    println!("{:?}", args);
+    let mut config = Figment::new();
+    if let Some(config_path) = args.config_path {
+        config = config.merge(Toml::file(config_path));
+    }
+    let config: Config = config.merge(Env::prefixed("MONITOR_")).extract()?;
+
+    let node_config = watch::NodeConfig {
+        execution_http_url: url::Url::parse(&config.execution_http_url)?,
+        execution_ws_url: url::Url::parse(&config.execution_ws_url)?,
+        consensus_http_url: url::Url::parse(&config.consensus_http_url)?,
+    };
 
     let (event_tx, mut event_rx): (Sender<watch::Event>, Receiver<watch::Event>) =
         mpsc::channel(100);
     let (analysis_tx, mut analysis_rx): (Sender<analyze::Analysis>, Receiver<analyze::Analysis>) =
         mpsc::channel(100);
 
-    let node_config = watch::NodeConfig {
-        http_url: url::Url::parse(HTTP_URL)?,
-        ws_url: url::Url::parse(WS_URL)?,
-        consensus_http_url: url::Url::parse(CONSENSUS_HTTP_URL)?,
-    };
     if let Err(e) = node_config.test_connection().await {
         log::error!("failed to connect to Ethereum node: {}", e);
         return Ok(());

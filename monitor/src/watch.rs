@@ -13,23 +13,23 @@ use tokio::sync::mpsc::Sender;
 /// NodeConfig stores the RPC and websocket URLs to an Ethereum node.
 #[derive(Debug, Clone)]
 pub struct NodeConfig {
-    pub http_url: url::Url,
-    pub ws_url: url::Url,
+    pub execution_http_url: url::Url,
+    pub execution_ws_url: url::Url,
     pub consensus_http_url: url::Url,
 }
 
 impl NodeConfig {
     /// Create a provider for the node at http_url.
     pub fn http_provider(&self) -> Provider<Http> {
-        let url = self.http_url.as_str();
+        let url = self.execution_http_url.as_str();
         // Unwrapping is fine as try_from only fails with a parse error if url is invalid. Since we
         // just serialized it, we know this is not the case.
         Provider::try_from(url).unwrap()
     }
 
-    /// Create and connect a websocket provider for the node at ws_url.
+    /// Create and connect a websocket provider for the node at execution_ws_url.
     pub async fn ws_provider(&self) -> Result<Provider<Ws>, ProviderError> {
-        let url = self.ws_url.as_str();
+        let url = self.execution_ws_url.as_str();
         Provider::connect(url).await
     }
 
