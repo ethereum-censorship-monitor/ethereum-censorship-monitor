@@ -9,8 +9,18 @@ mod types;
 mod visibility;
 mod watch;
 
+use clap::Parser;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
+
+/// Monitor Ethereum for validators not including valid transactions.
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Path to the config file
+    #[arg(short, long = "config")]
+    config_path: String,
+}
 
 const HTTP_URL: &str = "http://1.geth.mainnet.ethnodes.brainbot.com:8545/";
 const WS_URL: &str = "ws://1.geth.mainnet.ethnodes.brainbot.com:8546/";
@@ -19,6 +29,9 @@ const CONSENSUS_HTTP_URL: &str = "http://1.geth.mainnet.ethnodes.brainbot.com:50
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
+
+    let args = Args::parse();
+    println!("{:?}", args);
 
     let (event_tx, mut event_rx): (Sender<watch::Event>, Receiver<watch::Event>) =
         mpsc::channel(100);

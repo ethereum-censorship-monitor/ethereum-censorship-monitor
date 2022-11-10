@@ -424,13 +424,28 @@ checksum = "71655c45cb9845d3270c9d6df84ebe72b4dad3c2ba3f7023ad47c144e4e473a5"
 dependencies = [
  "atty",
  "bitflags",
- "clap_derive",
- "clap_lex",
+ "clap_derive 3.2.18",
+ "clap_lex 0.2.4",
  "indexmap",
  "once_cell",
  "strsim",
  "termcolor",
  "textwrap",
+]
+
+[[package]]
+name = "clap"
+version = "4.0.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91b9970d7505127a162fdaa9b96428d28a479ba78c9ec7550a63a5d9863db682"
+dependencies = [
+ "atty",
+ "bitflags",
+ "clap_derive 4.0.21",
+ "clap_lex 0.3.0",
+ "once_cell",
+ "strsim",
+ "termcolor",
 ]
 
 [[package]]
@@ -447,10 +462,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_derive"
+version = "4.0.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0177313f9f02afc995627906bbd8967e2be069f5261954222dac78290c2b9014"
+dependencies = [
+ "heck",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "clap_lex"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2850f2f5a82cbf437dd5af4d49848fbdfc27c157c3d010345776f952765261c5"
+dependencies = [
+ "os_str_bytes",
+]
+
+[[package]]
+name = "clap_lex"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d4198f73e42b4936b35b5bb248d81d2b595ecb170da0bac7655c54eedfa8da8"
 dependencies = [
  "os_str_bytes",
 ]
@@ -918,7 +955,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "1.0.0"
-source = "git+https://github.com/gakonst/ethers-rs#14e038860b17807c148cad08192e0722c86753fb"
+source = "git+https://github.com/gakonst/ethers-rs#8de8a29dc286403aeceb843563c3c29803e92e7c"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -933,7 +970,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "1.0.0"
-source = "git+https://github.com/gakonst/ethers-rs#14e038860b17807c148cad08192e0722c86753fb"
+source = "git+https://github.com/gakonst/ethers-rs#8de8a29dc286403aeceb843563c3c29803e92e7c"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -944,7 +981,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "1.0.0"
-source = "git+https://github.com/gakonst/ethers-rs#14e038860b17807c148cad08192e0722c86753fb"
+source = "git+https://github.com/gakonst/ethers-rs#8de8a29dc286403aeceb843563c3c29803e92e7c"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -962,7 +999,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "1.0.0"
-source = "git+https://github.com/gakonst/ethers-rs#14e038860b17807c148cad08192e0722c86753fb"
+source = "git+https://github.com/gakonst/ethers-rs#8de8a29dc286403aeceb843563c3c29803e92e7c"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -985,7 +1022,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "1.0.0"
-source = "git+https://github.com/gakonst/ethers-rs#14e038860b17807c148cad08192e0722c86753fb"
+source = "git+https://github.com/gakonst/ethers-rs#8de8a29dc286403aeceb843563c3c29803e92e7c"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -999,7 +1036,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "1.0.0"
-source = "git+https://github.com/gakonst/ethers-rs#14e038860b17807c148cad08192e0722c86753fb"
+source = "git+https://github.com/gakonst/ethers-rs#8de8a29dc286403aeceb843563c3c29803e92e7c"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -1017,7 +1054,6 @@ dependencies = [
  "rand",
  "rlp",
  "rlp-derive",
- "rust_decimal",
  "serde",
  "serde_json",
  "strum",
@@ -1030,7 +1066,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "1.0.0"
-source = "git+https://github.com/gakonst/ethers-rs#14e038860b17807c148cad08192e0722c86753fb"
+source = "git+https://github.com/gakonst/ethers-rs#8de8a29dc286403aeceb843563c3c29803e92e7c"
 dependencies = [
  "ethers-core",
  "getrandom",
@@ -1046,7 +1082,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "1.0.0"
-source = "git+https://github.com/gakonst/ethers-rs#14e038860b17807c148cad08192e0722c86753fb"
+source = "git+https://github.com/gakonst/ethers-rs#8de8a29dc286403aeceb843563c3c29803e92e7c"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
@@ -1071,7 +1107,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "1.0.0"
-source = "git+https://github.com/gakonst/ethers-rs#14e038860b17807c148cad08192e0722c86753fb"
+source = "git+https://github.com/gakonst/ethers-rs#8de8a29dc286403aeceb843563c3c29803e92e7c"
 dependencies = [
  "async-trait",
  "auto_impl 1.0.1",
@@ -1107,7 +1143,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "1.0.0"
-source = "git+https://github.com/gakonst/ethers-rs#14e038860b17807c148cad08192e0722c86753fb"
+source = "git+https://github.com/gakonst/ethers-rs#8de8a29dc286403aeceb843563c3c29803e92e7c"
 dependencies = [
  "async-trait",
  "coins-bip32",
@@ -1124,7 +1160,7 @@ dependencies = [
 [[package]]
 name = "ethers-solc"
 version = "1.0.0"
-source = "git+https://github.com/gakonst/ethers-rs#14e038860b17807c148cad08192e0722c86753fb"
+source = "git+https://github.com/gakonst/ethers-rs#8de8a29dc286403aeceb843563c3c29803e92e7c"
 dependencies = [
  "cfg-if",
  "dunce",
@@ -1879,6 +1915,7 @@ dependencies = [
 name = "monitor"
 version = "0.1.0"
 dependencies = [
+ "clap 4.0.22",
  "env_logger",
  "ethers",
  "futures",
@@ -2599,17 +2636,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rust_decimal"
-version = "1.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee9164faf726e4f3ece4978b25ca877ddc6802fa77f38cdccb32c7f805ecd70c"
-dependencies = [
- "arrayvec",
- "num-traits",
- "serde",
-]
-
-[[package]]
 name = "rustc-hex"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2800,9 +2826,9 @@ dependencies = [
 
 [[package]]
 name = "serde-aux"
-version = "4.0.0"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c79c1a5a310c28bf9f7a4b9bd848553051120d80a5952f993c7eb62f6ed6e4c5"
+checksum = "eb6a3148cb21f1afb585b9ce6aeea9e58bd02c37ddb336277af10396ca3574fd"
 dependencies = [
  "serde",
  "serde_json",
@@ -3050,7 +3076,7 @@ checksum = "4e4cdcf91153dc0e4e0637f26f042ada32a3b552bc8115935c7bf96f80132b0a"
 dependencies = [
  "anyhow",
  "cfg-if",
- "clap",
+ "clap 3.2.23",
  "console 0.14.1",
  "dialoguer",
  "fs2",

@@ -20,3 +20,4 @@ reqwest-eventsource = "0.4.0"
 futures = "0.3.25"
 hex = "0.4.3"
 rlp = "0.5.2"
+clap = { version = "4.0.22", features = ["derive"] }
