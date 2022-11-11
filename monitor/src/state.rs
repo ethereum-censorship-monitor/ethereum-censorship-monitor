@@ -3,7 +3,7 @@ use ethers::types::Transaction;
 use crate::{
     analyze::{analyze, Analysis},
     head_history::HeadHistory,
-    nonce_cache::{NonceCache},
+    nonce_cache::NonceCache,
     pool::Pool,
     types::{BeaconBlock, Timestamp, TxHash, TxpoolContent},
     watch::{Event, NodeConfig},
