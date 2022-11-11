@@ -30,27 +30,38 @@ struct Args {
     config_path: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 struct Config {
-    execution_http_url: String,
-    execution_ws_url: String,
-    consensus_http_url: String,
+    execution_http_url: url::Url,
+    execution_ws_url: url::Url,
+    consensus_http_url: url::Url,
 
     #[serde(default)]
     db_enabled: bool,
-    db_connection: Option<String>,
+    #[serde(default)]
+    db_connection: String,
 }
 
-fn load_config() -> Result<Config> {
-    let args = Args::parse();
-    let mut config = Figment::new();
-    if let Some(config_path) = args.config_path {
-        config = config.merge(Toml::file(config_path));
+impl Config {
+    pub fn load() -> Result<Self> {
+        let args = Args::parse();
+        let mut config = Figment::new();
+        if let Some(config_path) = args.config_path {
+            config = config.merge(Toml::file(config_path));
+        }
+        config
+            .merge(Env::prefixed("MONITOR_"))
+            .extract()
+            .wrap_err("error loading config")
     }
-    config
-        .merge(Env::prefixed("MONITOR_"))
-        .extract()
-        .wrap_err("error loading config")
+
+    pub fn node_config(&self) -> watch::NodeConfig {
+        watch::NodeConfig {
+            execution_http_url: self.execution_http_url.clone(),
+            execution_ws_url: self.execution_ws_url.clone(),
+            consensus_http_url: self.consensus_http_url.clone(),
+        }
+    }
 }
 
 #[tokio::main]
@@ -58,20 +69,16 @@ async fn main() -> Result<()> {
     env_logger::init();
     color_eyre::install()?;
 
-    let config = load_config()?;
-    let node_config = watch::NodeConfig {
-        execution_http_url: url::Url::parse(&config.execution_http_url)?,
-        execution_ws_url: url::Url::parse(&config.execution_ws_url)?,
-        consensus_http_url: url::Url::parse(&config.consensus_http_url)?,
-    };
-    let mut state = state::State::new(&node_config);
+    let config = Config::load()?;
+    let mut state = state::State::new(&config.node_config());
 
     let (event_tx, mut event_rx): (Sender<watch::Event>, Receiver<watch::Event>) =
         mpsc::channel(100);
     let (analysis_tx, mut analysis_rx): (Sender<analyze::Analysis>, Receiver<analyze::Analysis>) =
         mpsc::channel(100);
 
-    node_config
+    config
+        .node_config()
         .test_connection()
         .await
         .wrap_err("error connecting to Ethereum node")?;
@@ -88,6 +95,7 @@ async fn main() -> Result<()> {
         Err::<(), Report>(eyre!("process task ended unexpectedly"))
     });
 
+    let db_connection = config.db_connection.clone();
     let db_handle = tokio::spawn(async move {
         if !config.db_enabled {
             log::warn!("db is disabled, analyses will not be persisted");
@@ -95,7 +103,6 @@ async fn main() -> Result<()> {
         }
         log::info!("spawning db task");
 
-        let db_connection = config.db_connection.unwrap_or(String::from(""));
         log::debug!("connecting to db at {}", db_connection);
         let (client, connection) = tokio_postgres::connect(db_connection.as_str(), NoTls)
             .await
@@ -127,6 +134,7 @@ async fn main() -> Result<()> {
         Err::<(), Report>(eyre!("db task ended unexpectedly"))
     });
 
+    let node_config = config.node_config();
     let watch_handle = tokio::spawn(async move {
         log::info!("spawning watch task");
         watch::watch(&node_config, event_tx)
