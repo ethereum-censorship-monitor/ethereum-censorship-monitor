@@ -1,6 +1,6 @@
+use tokio_postgres::{error::Error as PostgresError, Client};
+
 use crate::analyze::Analysis;
-use tokio_postgres::error::Error as PostgresError;
-use tokio_postgres::Client;
 
 pub async fn insert_analysis_into_db(
     analysis: &Analysis,

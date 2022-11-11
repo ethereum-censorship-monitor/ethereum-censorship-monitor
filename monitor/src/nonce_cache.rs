@@ -1,8 +1,12 @@
-use crate::types::{Address, BeaconBlock, H256};
-use ethers::providers::{Http, Middleware, Provider, ProviderError};
-use ethers::types::{BlockId, Transaction};
 use std::collections::HashMap;
+
+use ethers::{
+    providers::{Http, Middleware, Provider, ProviderError},
+    types::{BlockId, Transaction},
+};
 use thiserror::Error;
+
+use crate::types::{Address, BeaconBlock, H256};
 
 pub struct NonceCache {
     beacon_block: BeaconBlock<Transaction>,

@@ -1,15 +1,19 @@
-use crate::config::Config;
-use crate::consensus_api::{ConsensusAPIError, ConsensusProvider};
-use crate::types::{BeaconBlock, NewBeaconHeadEvent, Timestamp, TxHash, TxpoolContent};
+use std::time::SystemTime;
+
 use ethers::{
     prelude::*,
     providers::{Http, Middleware, Provider, Ws},
 };
 use reqwest;
 use reqwest_eventsource;
-use std::time::SystemTime;
 use thiserror::Error;
 use tokio::sync::mpsc::Sender;
+
+use crate::{
+    config::Config,
+    consensus_api::{ConsensusAPIError, ConsensusProvider},
+    types::{BeaconBlock, NewBeaconHeadEvent, Timestamp, TxHash, TxpoolContent},
+};
 
 /// NodeConfig stores the RPC and websocket URLs to an Ethereum node.
 #[derive(Debug, Clone)]
@@ -31,18 +35,20 @@ impl NodeConfig {
     /// Create a provider for the node at http_url.
     pub fn http_provider(&self) -> Provider<Http> {
         let url = self.execution_http_url.as_str();
-        // Unwrapping is fine as try_from only fails with a parse error if url is invalid. Since we
-        // just serialized it, we know this is not the case.
+        // Unwrapping is fine as try_from only fails with a parse error if url is
+        // invalid. Since we just serialized it, we know this is not the case.
         Provider::try_from(url).unwrap()
     }
 
-    /// Create and connect a websocket provider for the node at execution_ws_url.
+    /// Create and connect a websocket provider for the node at
+    /// execution_ws_url.
     pub async fn ws_provider(&self) -> Result<Provider<Ws>, ProviderError> {
         let url = self.execution_ws_url.as_str();
         Provider::connect(url).await
     }
 
-    /// Create and connect a consensus node provider for the node at consensus_http_url.
+    /// Create and connect a consensus node provider for the node at
+    /// consensus_http_url.
     pub fn consensus_provider(&self) -> ConsensusProvider {
         ConsensusProvider::new(self.consensus_http_url.clone())
     }
@@ -119,15 +125,16 @@ fn get_current_timestamp() -> Timestamp {
         .as_secs()
 }
 
-/// Watch for relevant events. The events are sent to the given tx channel. The following events are
-/// yielded:
+/// Watch for relevant events. The events are sent to the given tx channel. The
+/// following events are yielded:
 ///
 /// - NewTransaction: whenever we see a new pending transaction
 /// - NewHead: whenever we see a new head block
-/// - TxpoolContent: after each new head, the tx pool content is queried and yielded
+/// - TxpoolContent: after each new head, the tx pool content is queried and
+///   yielded
 ///
-/// Returns an error if there's an issue with the node connection or the receiving side of the
-/// channel is closed.
+/// Returns an error if there's an issue with the node connection or the
+/// receiving side of the channel is closed.
 pub async fn watch(node_config: &NodeConfig, tx: Sender<Event>) -> Result<(), WatchError> {
     let transactions_handle = tokio::spawn(watch_transactions(node_config.clone(), tx.clone()));
     let heads_handle = tokio::spawn(watch_heads(node_config.clone(), tx.clone()));
@@ -157,8 +164,9 @@ pub async fn watch_transactions(
             timestamp: get_current_timestamp(),
         };
 
-        // send event to channel, but only if it's less than 50% full, drop it otherwise. Block and
-        // pool observations are more important, so we make sure there's room for them.
+        // send event to channel, but only if it's less than 50% full, drop it
+        // otherwise. Block and pool observations are more important, so we make
+        // sure there's room for them.
         let relative_capacity = tx.capacity() as f32 / tx.max_capacity() as f32;
         if relative_capacity > 0.5 {
             tx.send(event).await.map_err(WatchError::SendError)?;

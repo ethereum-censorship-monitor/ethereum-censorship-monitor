@@ -1,6 +1,8 @@
-use crate::types::{BeaconBlock, Timestamp};
-use ethers::types::Transaction;
 use std::collections::VecDeque;
+
+use ethers::types::Transaction;
+
+use crate::types::{BeaconBlock, Timestamp};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ObservedHead {
@@ -21,8 +23,8 @@ impl HeadHistory {
     pub fn observe(&mut self, timestamp: Timestamp, head: BeaconBlock<Transaction>) {
         let i = self.0.partition_point(|oh| oh.timestamp <= timestamp);
         log::debug!(
-            "inserting block {} observed at time {} ({}s after proposal time) into head history at \
-            index {} (current length {})",
+            "inserting block {} observed at time {} ({}s after proposal time) into head history \
+             at index {} (current length {})",
             head,
             timestamp,
             timestamp - head.proposal_time(),
@@ -53,7 +55,8 @@ impl HeadHistory {
 
     /// Get the block we considered the head at the given time, if any.
     pub fn at(&self, timestamp: Timestamp) -> Option<ObservedHead> {
-        // i is the index of the first block after t. We're interested in the one right before
+        // i is the index of the first block after t. We're interested in the one right
+        // before
         let i = self.0.partition_point(|oh| oh.timestamp <= timestamp);
         let j = i.checked_sub(1)?;
         let oh = self.0.get(j)?;
@@ -65,6 +68,7 @@ impl HeadHistory {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::types::{H256, U64};
 
     fn new_block(slot: u64) -> BeaconBlock<Transaction> {
         let mut b = BeaconBlock::default();

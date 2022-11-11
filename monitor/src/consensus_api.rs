@@ -1,10 +1,11 @@
-use crate::types::{BeaconBlockWithoutRoot, Bytes, SignedMessage, Transaction, H256, U256};
 use ethers::utils::keccak256;
 use hex;
 use rlp::Decodable;
 use serde::Deserialize;
 use thiserror::Error;
 use url::Url;
+
+use crate::types::{BeaconBlockWithoutRoot, SignedMessage, Transaction, H256};
 
 #[derive(Error, Debug)]
 pub enum ConsensusAPIError {

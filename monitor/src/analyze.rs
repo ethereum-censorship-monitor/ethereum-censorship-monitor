@@ -1,11 +1,16 @@
-use std::cmp::min;
-use std::collections::{HashMap, HashSet};
+use std::{
+    cmp::min,
+    collections::{HashMap, HashSet},
+    time::{Duration, Instant},
+};
+
 use thiserror::Error;
 
-use crate::nonce_cache::{NonceCache, NonceCacheError};
-use crate::pool::{Pool, TransactionWithVisibility};
-use crate::types::{BeaconBlock, ExecutionPayload, Transaction, TxHash, U256};
-use std::time::{Duration, Instant};
+use crate::{
+    nonce_cache::{NonceCache, NonceCacheError},
+    pool::{Pool, TransactionWithVisibility},
+    types::{BeaconBlock, ExecutionPayload, Transaction, TxHash, U256},
+};
 
 /// Possible justified reasons why a transaction is not in a block.
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -62,7 +67,8 @@ fn get_transaction_type(transaction: &Transaction) -> Result<u64, TransactionErr
     }
 }
 
-/// Calculate the tip amount a transaction would pay in a block with given base fee.
+/// Calculate the tip amount a transaction would pay in a block with given base
+/// fee.
 fn get_tip(transaction: &Transaction, base_fee: U256) -> Result<U256, TransactionError> {
     let t = get_transaction_type(transaction)?;
     if t == 0 || t == 1 {
@@ -93,7 +99,8 @@ fn get_tip(transaction: &Transaction, base_fee: U256) -> Result<U256, Transactio
     }
 }
 
-/// Check if there is not enough space left in the block to include the transaction.
+/// Check if there is not enough space left in the block to include the
+/// transaction.
 fn check_not_enough_space(transaction: &Transaction, exec: &ExecutionPayload<Transaction>) -> bool {
     let unused_gas = exec.gas_limit - exec.gas_used;
     transaction.gas > U256::from(unused_gas.as_u64())
@@ -144,8 +151,9 @@ async fn check_nonce_mismatch(
     Ok(nonce != transaction.nonce.as_u64())
 }
 
-/// Get the minimum tip of the given transactions. Transactions with missing required fields are
-/// ignored. If there's no transactions to consider, returns the maximum of U256.
+/// Get the minimum tip of the given transactions. Transactions with missing
+/// required fields are ignored. If there's no transactions to consider, returns
+/// the maximum of U256.
 fn get_min_tip(transactions: &Vec<Transaction>, base_fee: U256) -> U256 {
     transactions
         .iter()
@@ -169,16 +177,26 @@ pub struct Analysis {
 impl Analysis {
     pub fn summary(&self) -> String {
         format!(
-            "Analysis for block {}: {} txs from pool included, {} missed, {} in pool, {} in block, {} only tx hash, {} nonce mismatch, {} not enough space, {} base fee too low, {} tip too low, took {}s",
+            "Analysis for block {}: {} txs from pool included, {} missed, {} in pool, {} in \
+             block, {} only tx hash, {} nonce mismatch, {} not enough space, {} base fee too low, \
+             {} tip too low, took {}s",
             self.beacon_block,
             self.included_transactions.len(),
             self.missing_transactions.len(),
             self.num_txs_in_pool,
             self.num_txs_in_block,
-            self.non_inclusion_reasons.get(&NonInclusionReason::NonceMismatch).unwrap_or(&0),
-            self.non_inclusion_reasons.get(&NonInclusionReason::NotEnoughSpace).unwrap_or(&0),
-            self.non_inclusion_reasons.get(&NonInclusionReason::BaseFeeTooLow).unwrap_or(&0),
-            self.non_inclusion_reasons.get(&NonInclusionReason::TipTooLow).unwrap_or(&0),
+            self.non_inclusion_reasons
+                .get(&NonInclusionReason::NonceMismatch)
+                .unwrap_or(&0),
+            self.non_inclusion_reasons
+                .get(&NonInclusionReason::NotEnoughSpace)
+                .unwrap_or(&0),
+            self.non_inclusion_reasons
+                .get(&NonInclusionReason::BaseFeeTooLow)
+                .unwrap_or(&0),
+            self.non_inclusion_reasons
+                .get(&NonInclusionReason::TipTooLow)
+                .unwrap_or(&0),
             self.num_only_tx_hash,
             self.duration.as_secs(),
         )

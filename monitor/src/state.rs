@@ -1,10 +1,13 @@
-use crate::analyze::{analyze, Analysis};
-use crate::head_history::HeadHistory;
-use crate::nonce_cache::{NonceCache, NonceCacheError};
-use crate::pool::Pool;
-use crate::types::{BeaconBlock, Timestamp, TxHash, TxpoolContent};
-use crate::watch::{Event, NodeConfig};
 use ethers::types::Transaction;
+
+use crate::{
+    analyze::{analyze, Analysis},
+    head_history::HeadHistory,
+    nonce_cache::{NonceCache},
+    pool::Pool,
+    types::{BeaconBlock, Timestamp, TxHash, TxpoolContent},
+    watch::{Event, NodeConfig},
+};
 
 pub struct State {
     pool: Pool,
@@ -101,7 +104,8 @@ impl State {
             Some(head_obs) => {
                 if head_obs.head.root != beacon_block.parent_root {
                     log::info!(
-                        "skipping analysis of {} due to head mismatch at proposal time (parent: {},
+                        "skipping analysis of {} due to head mismatch at proposal time (parent: \
+                         {},
                         head at proposal time: {})",
                         beacon_block,
                         beacon_block.parent_root,

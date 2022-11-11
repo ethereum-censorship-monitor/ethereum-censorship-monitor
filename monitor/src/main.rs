@@ -12,8 +12,10 @@ mod watch;
 
 use color_eyre::{Report, Result};
 use eyre::{eyre, WrapErr};
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{
+    mpsc,
+    mpsc::{Receiver, Sender},
+};
 use tokio_postgres::NoTls;
 
 #[tokio::main]

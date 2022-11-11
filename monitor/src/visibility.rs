@@ -1,8 +1,9 @@
-use crate::types::Timestamp;
-use std::collections::vec_deque;
-use std::collections::VecDeque;
+use std::collections::{vec_deque, VecDeque};
 
-/// Observation represents a check if an item is visible or not at a certain point in time.
+use crate::types::Timestamp;
+
+/// Observation represents a check if an item is visible or not at a certain
+/// point in time.
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Observation {
     Seen(Timestamp),
@@ -24,9 +25,10 @@ impl Observation {
 /// - invisible: after a NotSeen observation (or not seen yet)
 /// - disappearing: between a Seen and a NotSeen observation
 ///
-/// There is no phase Appearing because we assume we notice immediately when items are seen, so the
-/// duration in which an item would be Appearing is negligible. In contrast, noticing that an item
-/// has disappeared may be delayed, so the Disappearing phase is relevant.
+/// There is no phase Appearing because we assume we notice immediately when
+/// items are seen, so the duration in which an item would be Appearing is
+/// negligible. In contrast, noticing that an item has disappeared may be
+/// delayed, so the Disappearing phase is relevant.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Visibility {
     Visible {
@@ -43,7 +45,8 @@ pub enum Visibility {
     },
 }
 
-/// Observation represents a sequence of observations made over time of a single item.
+/// Observation represents a sequence of observations made over time of a single
+/// item.
 #[derive(Debug, PartialEq)]
 pub struct Observations(VecDeque<Observation>);
 
@@ -53,7 +56,8 @@ impl Observations {
         Observations(VecDeque::new())
     }
 
-    /// Check if the item has not been observed at all (or all observations have been pruned).
+    /// Check if the item has not been observed at all (or all observations have
+    /// been pruned).
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -78,9 +82,9 @@ impl Observations {
             // on the following observation
             Some(Observation::Seen(t_before)) => {
                 // We only ever keep the first and the last Seen observations, every Seen in
-                // between will be squashed. Therefore, if the two previous observations are Seens,
-                // the first seen timestamp is the one of obs_two_before. Otherwise, it's the one
-                // of obs_before.
+                // between will be squashed. Therefore, if the two previous observations are
+                // Seens, the first seen timestamp is the one of obs_two_before.
+                // Otherwise, it's the one of obs_before.
                 let first_seen = if let Some(Observation::Seen(t_two_before)) = obs_two_before {
                     *t_two_before
                 } else {
@@ -114,8 +118,8 @@ impl Observations {
             .partition_point(|&o| o.timestamp() <= obs.timestamp());
         self.0.insert(i, obs);
 
-        // Check if we now have two NotSeens in a row (and if so delete the second one) or three
-        // Seens in a row (and delete the middle one)
+        // Check if we now have two NotSeens in a row (and if so delete the second one)
+        // or three Seens in a row (and delete the middle one)
         match obs {
             Observation::NotSeen(_) => {
                 let pre = i.checked_sub(1).map_or(None, |j| self.0.get(j));
@@ -143,18 +147,19 @@ impl Observations {
         }
     }
 
-    /// Remove old and unnecessary observations assuming we're only interested in visibilities at or
-    /// later than cutoff.
+    /// Remove old and unnecessary observations assuming we're only interested
+    /// in visibilities at or later than cutoff.
     ///
-    /// The only information that might be lost is the timestamp in an early NotSeen.
+    /// The only information that might be lost is the timestamp in an early
+    /// NotSeen.
     pub fn prune(&mut self, cutoff: Timestamp) {
-        // keep the observation right before the cutoff, remove all earlier ones as they don't
-        // affect visibility after the cutoff
+        // keep the observation right before the cutoff, remove all earlier ones as they
+        // don't affect visibility after the cutoff
         while self.0.len() >= 2 && self.0[1].timestamp() <= cutoff {
             self.0.pop_front();
         }
-        // remove leading NotSeen observations (even if they happened after the cutoff) as they
-        // carry no information
+        // remove leading NotSeen observations (even if they happened after the cutoff)
+        // as they carry no information
         while self.0.len() >= 1 && matches!(self.0[0], Observation::NotSeen(_)) {
             self.0.pop_front();
         }
@@ -162,8 +167,8 @@ impl Observations {
 }
 
 impl FromIterator<Observation> for Observations {
-    /// Create from a sequence of observations. The order of observations matters as they might be
-    /// squashed during insert (see insert).
+    /// Create from a sequence of observations. The order of observations
+    /// matters as they might be squashed during insert (see insert).
     fn from_iter<I: IntoIterator<Item = Observation>>(iter: I) -> Self {
         let mut obs = Observations::new();
         for o in iter {
@@ -174,8 +179,8 @@ impl FromIterator<Observation> for Observations {
 }
 
 impl IntoIterator for Observations {
-    type Item = Observation;
     type IntoIter = vec_deque::IntoIter<Self::Item>;
+    type Item = Observation;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()

@@ -1,8 +1,11 @@
-use ethers::types::TxpoolContent;
 use std::collections::{HashMap, HashSet};
 
-use crate::types::{Timestamp, Transaction, TxHash};
-use crate::visibility::{Observation, Observations, Visibility};
+use ethers::types::TxpoolContent;
+
+use crate::{
+    types::{Timestamp, Transaction, TxHash},
+    visibility::{Observation, Observations, Visibility},
+};
 
 #[derive(Debug)]
 pub struct TransactionWithVisibility {
@@ -11,9 +14,9 @@ pub struct TransactionWithVisibility {
     pub visibility: Visibility,
 }
 
-/// This struct keeps track of the current tx pool and how it changes over time. It provides
-/// a method to query the set of transactions and their visibilities that were present at a given
-/// point in time.
+/// This struct keeps track of the current tx pool and how it changes over time.
+/// It provides a method to query the set of transactions and their visibilities
+/// that were present at a given point in time.
 pub struct Pool {
     last_content: HashSet<TxHash>,
     tx_obs: HashMap<TxHash, Observations>,
@@ -29,10 +32,10 @@ impl Pool {
         }
     }
 
-    /// Inform the pool about the exact set of transactions it should contain. The transactions
-    /// will be observed as Seen. The transactions that are missing compared to the previous
-    /// invocation (or intermediate additions via pre_announce_transaction) are observed as
-    /// NotSeen.
+    /// Inform the pool about the exact set of transactions it should contain.
+    /// The transactions will be observed as Seen. The transactions that are
+    /// missing compared to the previous invocation (or intermediate
+    /// additions via pre_announce_transaction) are observed as NotSeen.
     pub fn observe(&mut self, timestamp: Timestamp, content: TxpoolContent) {
         let mut num_new = 0;
         let mut num_backfills = 0;
@@ -73,7 +76,8 @@ impl Pool {
         }
 
         log::debug!(
-            "observed pool at timestamp {} with {} txs ({} new, {} backfills, {} unseen, {} total entries, {} only hashes)",
+            "observed pool at timestamp {} with {} txs ({} new, {} backfills, {} unseen, {} total \
+             entries, {} only hashes)",
             timestamp,
             self.last_content.len(),
             num_new,
@@ -84,7 +88,8 @@ impl Pool {
         );
     }
 
-    /// Inform the pool about an individual transaction observed as Seen at the given timestamp.
+    /// Inform the pool about an individual transaction observed as Seen at the
+    /// given timestamp.
     pub fn pre_announce_transaction(&mut self, t: Timestamp, hash: TxHash) {
         self.tx_obs
             .entry(hash.clone())
@@ -92,8 +97,8 @@ impl Pool {
             .insert(Observation::Seen(t));
     }
 
-    /// Query the set of transactions that are either visible or disappearing at the given
-    /// timestamp.
+    /// Query the set of transactions that are either visible or disappearing at
+    /// the given timestamp.
     pub fn content_at(&self, t: Timestamp) -> HashMap<TxHash, TransactionWithVisibility> {
         let mut txs: HashMap<TxHash, TransactionWithVisibility> = HashMap::new();
         for (tx_hash, obs) in &self.tx_obs {
@@ -122,7 +127,8 @@ impl Pool {
         txs
     }
 
-    /// Prune deletes all data that does not affect visibilities at or after the given timestamp.
+    /// Prune deletes all data that does not affect visibilities at or after the
+    /// given timestamp.
     pub fn prune(&mut self, cutoff: Timestamp) {
         let mut fully_pruned: HashSet<TxHash> = HashSet::new();
         for (tx_hash, obs) in self.tx_obs.iter_mut() {

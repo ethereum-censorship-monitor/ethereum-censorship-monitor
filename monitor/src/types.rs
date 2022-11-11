@@ -1,10 +1,10 @@
-use ethers::abi::ethereum_types::FromDecStrErr;
-use serde::Deserialize;
 use std::fmt;
 
+use ethers::abi::ethereum_types::FromDecStrErr;
 pub use ethers::types::{
     Address, Block, Bytes, Transaction, TxHash, TxpoolContent, H256, U256, U64,
 };
+use serde::Deserialize;
 pub type Timestamp = u64;
 
 pub const GENESIS_TIME: Timestamp = 1606824023;
