@@ -1,0 +1,16 @@
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-check
+        name: cargo-check
+        entry: cargo +nightly check --manifest-path=./monitor/Cargo.toml
+        language: system
+        files: \.(rs)$
+        require_serial: true
+        pass_filenames: false
+      - id: cargo-fmt
+        name: cargo-fmt
+        entry: cargo +nightly fmt --manifest-path=./monitor/Cargo.toml --
+        language: system
+        files: \.(rs)$
+        require_serial: true
