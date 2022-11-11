@@ -32,6 +32,9 @@ struct Args {
 
 #[derive(Deserialize, Debug, Clone)]
 struct Config {
+    #[serde(default = "default_log_config")]
+    log: String,
+
     execution_http_url: url::Url,
     execution_ws_url: url::Url,
     consensus_http_url: url::Url,
@@ -64,12 +67,20 @@ impl Config {
     }
 }
 
+fn default_log_config() -> String {
+    String::from("info,monitor=debug")
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
     color_eyre::install()?;
 
     let config = Config::load()?;
+
+    env_logger::Builder::new()
+        .parse_filters(config.log.as_str())
+        .try_init()?;
+
     let mut state = state::State::new(&config.node_config());
 
     let (event_tx, mut event_rx): (Sender<watch::Event>, Receiver<watch::Event>) =
