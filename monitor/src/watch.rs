@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::consensus_api::{ConsensusAPIError, ConsensusProvider};
 use crate::types::{BeaconBlock, NewBeaconHeadEvent, Timestamp, TxHash, TxpoolContent};
 use ethers::{
@@ -19,6 +20,14 @@ pub struct NodeConfig {
 }
 
 impl NodeConfig {
+    pub fn from(config: &Config) -> Self {
+        NodeConfig {
+            execution_http_url: config.execution_http_url.clone(),
+            execution_ws_url: config.execution_ws_url.clone(),
+            consensus_http_url: config.consensus_http_url.clone(),
+        }
+    }
+
     /// Create a provider for the node at http_url.
     pub fn http_provider(&self) -> Provider<Http> {
         let url = self.execution_http_url.as_str();
