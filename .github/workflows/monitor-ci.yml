@@ -1,0 +1,84 @@
+name: Monitor CI
+
+on: [push]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-formatting:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Rust nightly toolchain
+        uses: actions-rs/toolchain@v1.0.6
+        with:
+          toolchain: nightly
+          profile: minimal
+          components: rustfmt
+          default: true
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: monitor
+      - name: Check formatting
+        run: cargo fmt --check
+        working-directory: monitor
+
+  check-errors:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Rust stable toolchain
+        uses: actions-rs/toolchain@v1.0.6
+        with:
+          toolchain: stable
+          profile: minimal
+          default: true
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: monitor
+      - name: Check for errors
+        run: cargo check
+        working-directory: monitor
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Rust stable toolchain
+        uses: actions-rs/toolchain@v1.0.6
+        with:
+          toolchain: stable
+          profile: minimal
+          default: true
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: monitor
+      - name: Build
+        run: cargo build
+        working-directory: monitor
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install Rust stable toolchain
+        uses: actions-rs/toolchain@v1.0.6
+        with:
+          toolchain: stable
+          profile: minimal
+          default: true
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: monitor
+      - name: Test
+        run: cargo test
+        working-directory: monitor
