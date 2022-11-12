@@ -24,7 +24,7 @@ impl State {
         let pool = Pool::new();
         let head_history = HeadHistory::new();
 
-        let nonce_cache_provider = node_config.http_provider();
+        let nonce_cache_provider = node_config.execution_provider();
         let nonce_cache = NonceCache::new(nonce_cache_provider);
 
         State {

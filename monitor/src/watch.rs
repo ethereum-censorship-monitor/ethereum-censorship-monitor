@@ -13,6 +13,9 @@ use crate::{
     types::{BeaconBlock, NewBeaconHeadEvent, Timestamp, TxHash, TxpoolContent},
 };
 
+const BEACON_GENESIS_ROOT_HEX: &str =
+    "4d611d5b93fdab69013a7f0a2f961caca0c853f87cfe9595fe50038163079360";
+
 /// NodeConfig stores the RPC and websocket URLs to an Ethereum node.
 #[derive(Debug, Clone)]
 pub struct NodeConfig {
@@ -31,7 +34,7 @@ impl NodeConfig {
     }
 
     /// Create a provider for the node at http_url.
-    pub fn http_provider(&self) -> Provider<Http> {
+    pub fn execution_provider(&self) -> Provider<Http> {
         let url = self.execution_http_url.as_str();
         // Unwrapping is fine as try_from only fails with a parse error if url is
         // invalid. Since we just serialized it, we know this is not the case.
@@ -51,9 +54,19 @@ impl NodeConfig {
         ConsensusProvider::new(self.consensus_http_url.clone())
     }
 
-    pub async fn test_connection(&self) -> Result<(), ProviderError> {
-        let p = self.http_provider();
+    pub async fn test_connection(&self) -> Result<(), WatchError> {
+        let p = self.execution_provider();
         p.get_block_number().await?;
+
+        let p = self.consensus_provider();
+        let beacon_genesis_root: H256 =
+            H256::from_slice(hex::decode(BEACON_GENESIS_ROOT_HEX).unwrap().as_slice());
+        p.fetch_beacon_block(beacon_genesis_root).await?;
+
+        let p = self.ws_provider().await?;
+        let s = p.subscribe_pending_txs().await?;
+        s.unsubscribe().await?;
+
         Ok(())
     }
 }
@@ -132,10 +145,7 @@ pub async fn watch_transactions(
     tx: Sender<Event>,
 ) -> Result<(), WatchError> {
     let ws_provider = node_config.ws_provider().await?;
-    let mut stream = ws_provider
-        .subscribe_pending_txs()
-        .await
-        .map_err(WatchError::from)?;
+    let mut stream = ws_provider.subscribe_pending_txs().await?;
 
     while let Some(hash) = stream.next().await {
         let event = Event::NewTransaction {
@@ -148,14 +158,14 @@ pub async fn watch_transactions(
         // sure there's room for them.
         let relative_capacity = tx.capacity() as f32 / tx.max_capacity() as f32;
         if relative_capacity > 0.5 {
-            tx.send(event).await.map_err(WatchError::Send)?;
+            tx.send(event).await?;
         }
     }
     Err(WatchError::StreamEnded)
 }
 
 async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), WatchError> {
-    let exec_provider = node_config.http_provider();
+    let exec_provider = node_config.execution_provider();
     let cons_provider = node_config.consensus_provider();
 
     let url = node_config
@@ -210,10 +220,7 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
             }
         }
 
-        let content = exec_provider
-            .txpool_content()
-            .await
-            .map_err(WatchError::from)?;
+        let content = exec_provider.txpool_content().await?;
         let event = Event::TxpoolContent {
             content,
             timestamp: get_current_timestamp(),

@@ -9,8 +9,10 @@ mod state;
 mod types;
 mod watch;
 
-use color_eyre::{Report, Result};
-use eyre::{eyre, WrapErr};
+use color_eyre::{
+    eyre::{eyre, WrapErr},
+    Report, Result,
+};
 use tokio::sync::{
     mpsc,
     mpsc::{Receiver, Sender},
