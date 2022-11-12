@@ -9,6 +9,8 @@ use crate::{
     watch::{Event, NodeConfig},
 };
 
+const PRUNE_DELAY: u64 = 16 * 12;
+
 pub struct State {
     pool: Pool,
     head_history: HeadHistory,
@@ -60,6 +62,7 @@ impl State {
         t: Timestamp,
     ) -> Vec<Analysis> {
         self.pool.observe(t, content);
+        self.pool.prune(t.saturating_sub(PRUNE_DELAY));
 
         let beacon_blocks = self.analysis_queue.clone();
         self.analysis_queue.clear();
@@ -80,6 +83,7 @@ impl State {
         t: Timestamp,
     ) -> Vec<Analysis> {
         self.head_history.observe(t, beacon_block.clone());
+        self.head_history.prune(t.saturating_sub(PRUNE_DELAY));
         self.analysis_queue.push(beacon_block);
         Vec::new()
     }
