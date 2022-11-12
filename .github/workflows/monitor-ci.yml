@@ -18,10 +18,6 @@ jobs:
           profile: minimal
           components: rustfmt
           default: true
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: monitor
       - name: Check formatting
         run: cargo fmt --check
         working-directory: monitor
