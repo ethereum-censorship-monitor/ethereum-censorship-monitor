@@ -59,7 +59,7 @@ async fn run(config: config::Config) -> Result<()> {
     let db_handle = tokio::spawn(async move {
         if !config.db_enabled {
             log::warn!("db is disabled, analyses will not be persisted");
-            while let Some(_) = analysis_rx.recv().await {}
+            while analysis_rx.recv().await.is_some() {}
         }
         log::info!("spawning db task");
 

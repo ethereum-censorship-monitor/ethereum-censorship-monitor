@@ -34,7 +34,7 @@ where
     T::from_dec_str(&s).map_err(serde::de::Error::custom)
 }
 
-#[derive(Deserialize, Debug, PartialEq, Clone)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct NewBeaconHeadEvent {
     #[serde(deserialize_with = "from_dec_str")]
     pub slot: U256,
@@ -46,13 +46,13 @@ pub struct NewBeaconHeadEvent {
     pub execution_optimistic: bool,
 }
 
-#[derive(Deserialize, Debug, PartialEq, Clone)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct SignedMessage<T> {
     pub message: T,
     pub signature: Bytes,
 }
 
-#[derive(Deserialize, Debug, PartialEq, Clone)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct BeaconBlockWithoutRoot<T> {
     #[serde(deserialize_with = "from_dec_str")]
     pub slot: U64,
@@ -81,7 +81,7 @@ impl<T> fmt::Display for BeaconBlockWithoutRoot<T> {
     }
 }
 
-#[derive(Deserialize, Debug, PartialEq, Clone, Default)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Default)]
 pub struct BeaconBlock<T> {
     pub root: H256,
     #[serde(deserialize_with = "from_dec_str")]
@@ -105,17 +105,6 @@ impl<T> BeaconBlock<T> {
         }
     }
 
-    pub fn with_transactions<S>(b: Self, txs: Vec<S>) -> BeaconBlock<S> {
-        BeaconBlock {
-            root: b.root,
-            slot: b.slot,
-            proposer_index: b.proposer_index,
-            parent_root: b.parent_root,
-            state_root: b.state_root,
-            body: BeaconBlockBody::with_transactions(b.body, txs),
-        }
-    }
-
     pub fn proposal_time(&self) -> Timestamp {
         GENESIS_TIME + self.slot.as_u64() * 12
     }
@@ -127,7 +116,7 @@ impl<T> fmt::Display for BeaconBlock<T> {
     }
 }
 
-#[derive(Deserialize, Debug, PartialEq, Clone, Default)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Default)]
 pub struct BeaconBlockBody<T> {
     pub randao_reveal: Bytes,
     #[serde(skip)]
@@ -165,7 +154,7 @@ impl<T> BeaconBlockBody<T> {
     }
 }
 
-#[derive(Deserialize, Debug, PartialEq, Clone, Default)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Default)]
 pub struct ExecutionPayload<T> {
     pub parent_hash: H256,
     pub fee_recipient: Address,

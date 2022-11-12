@@ -116,7 +116,7 @@ impl State {
             }
         }
 
-        let analysis = analyze(&beacon_block, &self.pool, &mut self.nonce_cache).await;
+        let analysis = analyze(beacon_block, &self.pool, &mut self.nonce_cache).await;
         match analysis {
             Ok(a) => Some(a),
             Err(e) => {

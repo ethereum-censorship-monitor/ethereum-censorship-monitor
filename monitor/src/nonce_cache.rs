@@ -51,11 +51,11 @@ impl NonceCache {
             None => {
                 let nonce_u256 = self
                     .provider
-                    .get_transaction_count(account.clone(), block_id)
+                    .get_transaction_count(*account, block_id)
                     .await
                     .map_err(NonceCacheError::ProviderError)?;
                 let nonce = nonce_u256.as_u64();
-                self.nonces.insert(account.clone(), nonce);
+                self.nonces.insert(*account, nonce);
                 Ok(nonce)
             }
         }

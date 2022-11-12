@@ -1,5 +1,4 @@
 use ethers::utils::keccak256;
-use hex;
 use rlp::Decodable;
 use serde::Deserialize;
 use thiserror::Error;
@@ -18,7 +17,7 @@ pub enum ConsensusAPIError {
     UnexpectedResponse { description: String },
 }
 
-#[derive(Deserialize, Debug, PartialEq, Clone)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct ConsensusAPIResponse<T> {
     pub data: T,
     pub execution_optimistic: bool,
@@ -73,7 +72,7 @@ impl ConsensusProvider {
         for s in tx_strings {
             let b = hex::decode(s.strip_prefix("0x").unwrap_or(s.as_str())).map_err(|e| {
                 ConsensusAPIError::UnexpectedResponse {
-                    description: String::from(format!("error decoding tx in block: {}", e)),
+                    description: format!("error decoding tx in block: {}", e),
                 }
             })?;
             let tx = Transaction::decode(&rlp::Rlp::new(b.as_slice()));

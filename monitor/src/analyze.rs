@@ -154,7 +154,7 @@ async fn check_nonce_mismatch(
 /// Get the minimum tip of the given transactions. Transactions with missing
 /// required fields are ignored. If there's no transactions to consider, returns
 /// the maximum of U256.
-fn get_min_tip(transactions: &Vec<Transaction>, base_fee: U256) -> U256 {
+fn get_min_tip(transactions: &[Transaction], base_fee: U256) -> U256 {
     transactions
         .iter()
         .filter_map(|tx| get_tip(tx, base_fee).ok())
@@ -235,7 +235,7 @@ pub async fn analyze(
         }
         let tx = tx_with_vis.transaction.as_ref().unwrap();
 
-        match check_inclusion(&tx, beacon_block, nonce_cache).await {
+        match check_inclusion(tx, beacon_block, nonce_cache).await {
             Ok(Some(reason)) => *non_inclusion_reasons.entry(reason).or_insert(0) += 1,
             Ok(None) => {
                 missing_txs.insert(hash, tx_with_vis);

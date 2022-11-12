@@ -4,7 +4,7 @@ use ethers::types::Transaction;
 
 use crate::types::{BeaconBlock, Timestamp};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObservedHead {
     pub head: BeaconBlock<Transaction>,
     pub timestamp: Timestamp,
@@ -35,6 +35,7 @@ impl HeadHistory {
     }
 
     /// Delete blocks that do not affect the history at or after cutoff.
+    #[allow(dead_code)]
     pub fn prune(&mut self, cutoff: Timestamp) {
         let mut num_pruned = 0;
         while let Some(oh) = self.0.get(1) {

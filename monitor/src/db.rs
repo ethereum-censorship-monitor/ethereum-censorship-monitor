@@ -23,7 +23,7 @@ pub async fn insert_analysis_into_db(
         .execute(&insert_beacon_block_statement, &[&beacon_root.to_string()])
         .await?;
 
-    for (_, tx) in &analysis.missing_transactions {
+    for tx in analysis.missing_transactions.values() {
         let tx_hash = &tx.hash.to_string();
         client
             .execute(&insert_transaction_statement, &[tx_hash])

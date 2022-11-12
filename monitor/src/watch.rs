@@ -4,8 +4,6 @@ use ethers::{
     prelude::*,
     providers::{Http, Middleware, Provider, Ws},
 };
-use reqwest;
-use reqwest_eventsource;
 use thiserror::Error;
 use tokio::sync::mpsc::Sender;
 
@@ -76,44 +74,25 @@ pub enum Event {
     },
 }
 
-impl Event {
-    pub fn timestamp(&self) -> Timestamp {
-        match self {
-            Event::NewTransaction {
-                hash: _,
-                timestamp: t,
-            } => *t,
-            Event::NewHead {
-                beacon_block: _,
-                timestamp: t,
-            } => *t,
-            Event::TxpoolContent {
-                content: _,
-                timestamp: t,
-            } => *t,
-        }
-    }
-}
-
 #[derive(Error, Debug)]
 pub enum WatchError {
     #[error("event stream ended unexpectedly")]
-    StreamEndedError,
+    StreamEnded,
     #[error("failed to send event to channel")]
-    SendError(#[from] tokio::sync::mpsc::error::SendError<Event>),
+    Send(#[from] tokio::sync::mpsc::error::SendError<Event>),
     #[error("error from execution client")]
-    ProviderError(#[from] ethers::providers::ProviderError),
+    Provider(#[from] ethers::providers::ProviderError),
     #[error("error joining tasks")]
-    JoinError(#[from] tokio::task::JoinError),
+    Join(#[from] tokio::task::JoinError),
     #[error("error listening to blocks from event source")]
-    ReqwestEventsourceError(#[from] reqwest_eventsource::Error),
+    ReqwestEventsource(#[from] reqwest_eventsource::Error),
     #[error("received invalid JSON data")]
-    JSONError {
+    JSONDecoding {
         data: String,
         source: serde_json::Error,
     },
     #[error("error from consensus client")]
-    ConsensusAPIError(#[from] ConsensusAPIError),
+    ConsensusAPI(#[from] ConsensusAPIError),
 }
 
 /// Get the current timestamp, i.e. number of seconds since unix epoch.
@@ -169,10 +148,10 @@ pub async fn watch_transactions(
         // sure there's room for them.
         let relative_capacity = tx.capacity() as f32 / tx.max_capacity() as f32;
         if relative_capacity > 0.5 {
-            tx.send(event).await.map_err(WatchError::SendError)?;
+            tx.send(event).await.map_err(WatchError::Send)?;
         }
     }
-    Err(WatchError::StreamEndedError)
+    Err(WatchError::StreamEnded)
 }
 
 async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), WatchError> {
@@ -194,7 +173,7 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
                     serde_json::from_str(message.data.as_str());
                 if let Err(e) = event {
                     es.close();
-                    return Err(WatchError::JSONError {
+                    return Err(WatchError::JSONDecoding {
                         source: e,
                         data: message.data,
                     });
@@ -241,5 +220,5 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
         };
         tx.send(event).await?;
     }
-    Err(WatchError::StreamEndedError)
+    Err(WatchError::StreamEnded)
 }

@@ -112,8 +112,7 @@ impl Pool {
             .pending
             .values()
             .chain(content.queued.values())
-            .map(|m| m.values())
-            .flatten()
+            .flat_map(|m| m.values())
             .map(|tx| (tx.hash, tx))
             .collect();
         let num_txs = txs.len();
@@ -141,7 +140,7 @@ impl Pool {
         // mark transactions not in the pool as disappeared
         let mut num_disappeared = 0;
         for (tx_hash, obs_tx) in self.0.iter_mut() {
-            if !txs.contains_key(&tx_hash) {
+            if !txs.contains_key(tx_hash) {
                 if !obs_tx.has_disappeared_at(timestamp) {
                     num_disappeared += 1;
                 }
@@ -163,6 +162,7 @@ impl Pool {
 
     /// Remove transactions that have already disappeared at the given
     /// timestamp.
+    #[allow(dead_code)]
     pub fn prune(&mut self, cutoff: Timestamp) {
         let len_before = self.0.len();
         self.0
