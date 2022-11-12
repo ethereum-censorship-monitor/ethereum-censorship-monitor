@@ -14,3 +14,10 @@ repos:
         language: system
         files: \.(rs)$
         require_serial: true
+      - id: clippy
+        name: clippy
+        entry: cargo clippy --manifest-path=./monitor/Cargo.toml -- --deny "warnings"
+        language: system
+        files: \.(rs)$
+        require_serial: true
+        pass_filenames: false
