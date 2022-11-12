@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use crate::{
     nonce_cache::{NonceCache, NonceCacheError},
-    pool::{Pool, TransactionWithVisibility},
+    pool::{ObservedTransaction, Pool},
     types::{BeaconBlock, ExecutionPayload, Transaction, TxHash, U256},
 };
 
@@ -165,8 +165,8 @@ fn get_min_tip(transactions: &Vec<Transaction>, base_fee: U256) -> U256 {
 #[derive(Debug)]
 pub struct Analysis {
     pub beacon_block: BeaconBlock<Transaction>,
-    pub missing_transactions: HashMap<TxHash, TransactionWithVisibility>,
-    pub included_transactions: HashMap<TxHash, TransactionWithVisibility>,
+    pub missing_transactions: HashMap<TxHash, ObservedTransaction>,
+    pub included_transactions: HashMap<TxHash, ObservedTransaction>,
     pub num_txs_in_block: usize,
     pub num_txs_in_pool: usize,
     pub num_only_tx_hash: usize,

@@ -7,7 +7,6 @@ mod nonce_cache;
 mod pool;
 mod state;
 mod types;
-mod visibility;
 mod watch;
 
 use color_eyre::{Report, Result};
