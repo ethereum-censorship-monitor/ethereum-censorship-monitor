@@ -224,21 +224,21 @@ pub async fn analyze(
     let mut non_inclusion_reasons = HashMap::new();
     let mut num_only_tx_hash = 0;
 
-    for (hash, tx_with_vis) in pool_at_t {
+    for (hash, obs_tx) in pool_at_t {
         if txs_in_block.contains(&hash) {
-            included_txs.insert(hash, tx_with_vis);
+            included_txs.insert(hash, obs_tx);
             continue;
         }
-        if tx_with_vis.transaction.is_none() {
+        if obs_tx.transaction.is_none() {
             num_only_tx_hash += 1;
             continue;
         }
-        let tx = tx_with_vis.transaction.as_ref().unwrap();
+        let tx = obs_tx.transaction.as_ref().unwrap();
 
         match check_inclusion(tx, beacon_block, nonce_cache).await {
             Ok(Some(reason)) => *non_inclusion_reasons.entry(reason).or_insert(0) += 1,
             Ok(None) => {
-                missing_txs.insert(hash, tx_with_vis);
+                missing_txs.insert(hash, obs_tx);
             }
             Err(InclusionCheckError::TransactionError(e)) => {
                 log::warn!(
