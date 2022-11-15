@@ -13,8 +13,8 @@ use crate::{
     types::{BeaconBlock, NewBeaconHeadEvent, Timestamp, TxHash, TxpoolContent},
 };
 
-const BEACON_GENESIS_ROOT_HEX: &str =
-    "4d611d5b93fdab69013a7f0a2f961caca0c853f87cfe9595fe50038163079360";
+const BEACON_MERGE_ROOT_HEX: &str =
+    "810a00400a80cdffc11ffdcf17ac404ac4dba215b95221955a9dfddf163d0b0d";
 
 /// NodeConfig stores the RPC and websocket URLs to an Ethereum node.
 #[derive(Debug, Clone)]
@@ -60,7 +60,7 @@ impl NodeConfig {
 
         let p = self.consensus_provider();
         let beacon_genesis_root: H256 =
-            H256::from_slice(hex::decode(BEACON_GENESIS_ROOT_HEX).unwrap().as_slice());
+            H256::from_slice(hex::decode(BEACON_MERGE_ROOT_HEX).unwrap().as_slice());
         p.fetch_beacon_block(beacon_genesis_root).await?;
 
         let p = self.ws_provider().await?;
