@@ -109,8 +109,7 @@ impl State {
                 if head_obs.head.root != beacon_block.parent_root {
                     log::info!(
                         "skipping analysis of {} due to head mismatch at proposal time (parent: \
-                         {},
-                        head at proposal time: {})",
+                         {}, head at proposal time: {})",
                         beacon_block,
                         beacon_block.parent_root,
                         head_obs.head,

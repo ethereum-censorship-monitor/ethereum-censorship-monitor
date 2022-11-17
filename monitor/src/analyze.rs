@@ -9,7 +9,7 @@ use thiserror::Error;
 use crate::{
     nonce_cache::{NonceCache, NonceCacheError},
     pool::{ObservedTransaction, Pool},
-    types::{BeaconBlock, ExecutionPayload, Transaction, TxHash, U256},
+    types::{Address, BeaconBlock, ExecutionPayload, Transaction, TxHash, U256},
 };
 
 /// Possible justified reasons why a transaction is not in a block.
@@ -170,6 +170,7 @@ pub struct Analysis {
     pub num_txs_in_block: usize,
     pub num_txs_in_pool: usize,
     pub num_only_tx_hash: usize,
+    pub num_replaced_txs: usize,
     pub non_inclusion_reasons: HashMap<NonInclusionReason, usize>,
     pub duration: Duration,
 }
@@ -177,28 +178,35 @@ pub struct Analysis {
 impl Analysis {
     pub fn summary(&self) -> String {
         format!(
-            "Analysis for block {}: {} txs from pool included, {} missed, {} in pool, {} in \
-             block, {} only tx hash, {} nonce mismatch, {} not enough space, {} base fee too low, \
-             {} tip too low, took {}s",
-            self.beacon_block,
-            self.included_transactions.len(),
-            self.missing_transactions.len(),
-            self.num_txs_in_pool,
-            self.num_txs_in_block,
-            self.non_inclusion_reasons
+            "Analysis for block {beacon_block}: {included} txs from pool included, {missing} \
+             missed, {in_pool} in pool, {in_block} in block, {only_hash} only hash known, \
+             {replaced} replaced, {nonce_mismatch} nonce mismatch, {not_enough_space} not enough \
+             space, {base_fee_too_low} base fee too low, {tip_too_low} tip too low, took \
+             {duration:.1}s",
+            beacon_block = self.beacon_block,
+            included = self.included_transactions.len(),
+            missing = self.missing_transactions.len(),
+            in_pool = self.num_txs_in_pool,
+            in_block = self.num_txs_in_block,
+            only_hash = self.num_only_tx_hash,
+            replaced = self.num_replaced_txs,
+            nonce_mismatch = self
+                .non_inclusion_reasons
                 .get(&NonInclusionReason::NonceMismatch)
                 .unwrap_or(&0),
-            self.non_inclusion_reasons
+            not_enough_space = self
+                .non_inclusion_reasons
                 .get(&NonInclusionReason::NotEnoughSpace)
                 .unwrap_or(&0),
-            self.non_inclusion_reasons
+            base_fee_too_low = self
+                .non_inclusion_reasons
                 .get(&NonInclusionReason::BaseFeeTooLow)
                 .unwrap_or(&0),
-            self.non_inclusion_reasons
+            tip_too_low = self
+                .non_inclusion_reasons
                 .get(&NonInclusionReason::TipTooLow)
                 .unwrap_or(&0),
-            self.num_only_tx_hash,
-            self.duration.as_secs(),
+            duration = self.duration.as_secs_f64(),
         )
     }
 }
@@ -213,16 +221,19 @@ pub async fn analyze(
     let exec = &beacon_block.body.execution_payload;
     let txs_in_block: HashSet<&TxHash> =
         HashSet::from_iter(exec.transactions.iter().map(|tx| &tx.hash));
+    let senders_and_nonces_in_block: HashSet<(&Address, &U256)> =
+        HashSet::from_iter(exec.transactions.iter().map(|tx| (&tx.from, &tx.nonce)));
     let proposal_time = beacon_block.proposal_time();
     let pool_at_t = pool.content_at(proposal_time);
 
     let num_txs_in_block = exec.transactions.len();
     let num_txs_in_pool = pool_at_t.len();
 
-    let mut missing_txs = HashMap::new();
     let mut included_txs = HashMap::new();
-    let mut non_inclusion_reasons = HashMap::new();
     let mut num_only_tx_hash = 0;
+    let mut num_replaced_txs = 0;
+    let mut missing_txs = HashMap::new();
+    let mut non_inclusion_reasons = HashMap::new();
 
     for (hash, obs_tx) in pool_at_t {
         if txs_in_block.contains(&hash) {
@@ -234,6 +245,10 @@ pub async fn analyze(
             continue;
         }
         let tx = obs_tx.transaction.as_ref().unwrap();
+        if senders_and_nonces_in_block.contains(&(&tx.from, &tx.nonce)) {
+            num_replaced_txs += 1;
+            continue;
+        }
 
         match check_inclusion(tx, beacon_block, nonce_cache).await {
             Ok(Some(reason)) => *non_inclusion_reasons.entry(reason).or_insert(0) += 1,
@@ -263,6 +278,7 @@ pub async fn analyze(
         num_txs_in_block,
         num_txs_in_pool,
         num_only_tx_hash,
+        num_replaced_txs,
         non_inclusion_reasons,
         duration,
     })
