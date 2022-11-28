@@ -1,0 +1,70 @@
+{
+  "db": "PostgreSQL",
+  "0b825bbbfac275ca7ac8796e2e69e5bb26dca6241c2842ed2bdadac525c64c58": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n            DROP TABLE IF EXISTS transaction;\n            "
+  },
+  "8f8c923f9b1ed91790d9cc035e070f288c8e2363850b56bf765aca23d2409a6d": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Bpchar"
+        ]
+      }
+    },
+    "query": "\n        INSERT INTO beacon_block (\n            root\n        ) VALUES (\n            $1\n        ) ON CONFLICT DO NOTHING;\n        "
+  },
+  "cd8ddda79531ddde137c0dc154b435e53ff782db6876c69e133412631444bd79": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Bpchar"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO transaction (\n                hash\n            ) VALUES (\n                $1\n            ) ON CONFLICT DO NOTHING;\n            "
+  },
+  "f0d8d3bc638b447594e9e51e4108f85816953b42e7ccae378cd014dcef19a39c": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n            DROP TABLE IF EXISTS beacon_block;\n            "
+  },
+  "f5e5cf9fddc4a93dbfd84378344af73a91e49b56747f8c8b22c7a6c1c7965bb4": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Bpchar",
+          "Bpchar"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO miss (\n                transaction_hash,\n                beacon_block_root\n            ) VALUES (\n                $1,\n                $2\n            ) ON CONFLICT DO NOTHING;\n            "
+  },
+  "fd0fb8a7c3feebfe5381ed6f892b3104568e688b60a88dbcbddd8e7ef9663c7f": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n            DROP TABLE IF EXISTS miss;\n            "
+  }
+}
