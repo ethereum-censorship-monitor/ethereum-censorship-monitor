@@ -8,7 +8,7 @@ use thiserror::Error;
 use tokio::sync::mpsc::Sender;
 
 use crate::{
-    config::Config,
+    cli::Config,
     consensus_api::{ConsensusAPIError, ConsensusProvider},
     types::{BeaconBlock, NewBeaconHeadEvent, Timestamp, TxHash, TxpoolContent},
 };

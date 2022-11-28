@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use color_eyre::{eyre::WrapErr, Result};
 use figment::{
     providers::{Env, Format, Toml},
@@ -9,10 +9,24 @@ use serde::Deserialize;
 /// Monitor Ethereum for validators not including valid transactions.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct Args {
+#[command(propagate_version = true)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+
     /// Path to the config file
     #[arg(short, long = "config")]
-    config_path: Option<String>,
+    pub config_path: Option<String>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    /// Run the monitor
+    Run,
+    /// Create the database if it does not exist
+    CreateDB,
+    /// Delete the database if it exists
+    DropDB,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -31,10 +45,9 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load() -> Result<Self> {
-        let args = Args::parse();
+    pub fn load(config_path: Option<&String>) -> Result<Self> {
         let mut config = Figment::new();
-        if let Some(config_path) = args.config_path {
+        if let Some(config_path) = config_path {
             config = config.merge(Toml::file(config_path));
         }
         config

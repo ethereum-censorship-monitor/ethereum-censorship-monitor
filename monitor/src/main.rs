@@ -1,5 +1,5 @@
 mod analyze;
-mod config;
+mod cli;
 mod consensus_api;
 mod db;
 mod head_history;
@@ -9,6 +9,7 @@ mod state;
 mod types;
 mod watch;
 
+use clap::Parser;
 use color_eyre::{
     eyre::{eyre, WrapErr},
     Report, Result,
@@ -23,16 +24,21 @@ use tokio_postgres::NoTls;
 async fn main() -> Result<()> {
     color_eyre::install()?;
 
-    let config = config::Config::load()?;
+    let cli = cli::Cli::parse();
+    let config = cli::Config::load(cli.config_path.as_ref())?;
 
     env_logger::Builder::new()
         .parse_filters(config.log.as_str())
         .try_init()?;
 
-    run(config).await
+    match cli.command {
+        cli::Commands::Run => run(config).await,
+        cli::Commands::CreateDB => create_db(config).await,
+        cli::Commands::DropDB => drop_db(config).await,
+    }
 }
 
-async fn run(config: config::Config) -> Result<()> {
+async fn run(config: cli::Config) -> Result<()> {
     let node_config = watch::NodeConfig::from(&config);
     let mut state = state::State::new(&node_config);
 
@@ -110,5 +116,15 @@ async fn run(config: config::Config) -> Result<()> {
         r = watch_handle => r,
     }??;
 
+    Ok(())
+}
+
+async fn create_db(_config: cli::Config) -> Result<()> {
+    log::info!("create db");
+    Ok(())
+}
+
+async fn drop_db(_config: cli::Config) -> Result<()> {
+    log::info!("drop db");
     Ok(())
 }
