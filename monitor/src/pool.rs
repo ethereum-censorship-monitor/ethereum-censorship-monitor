@@ -64,9 +64,7 @@ impl ObservedTransaction {
 
     /// Check if the transaction is visible at a given timestamp.
     pub fn is_visible_at(&self, timestamp: Timestamp) -> bool {
-        timestamp >= self.interval.0
-            && timestamp <= self.interval.1
-            && !self.has_disappeared_at(timestamp)
+        timestamp >= self.interval.0 && !self.has_disappeared_at(timestamp)
     }
 
     /// Check if the transaction has disappeared already at a given timestamp.
