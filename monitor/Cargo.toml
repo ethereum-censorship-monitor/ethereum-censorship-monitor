@@ -8,11 +8,11 @@ edition = "2021"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 log = { version = "0.4", features = ["std", "serde"] }
-ethers = { git = "https://github.com/gakonst/ethers-rs", features = ["ws", "openssl"] }
+ethers = { git = "https://github.com/gakonst/ethers-rs", features = ["ws", "rustls"] }
 rand = "0.8"
 url = { version = "2.3.1", features = ["serde"] }
 thiserror = "1.0"
-reqwest = { version = "0.11.12", features = ["json"] }
+reqwest = { version = "0.11.12", features = ["json", "rustls-tls"] }
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.87"
 env_logger = "0.9.1"
