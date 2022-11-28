@@ -18,7 +18,6 @@ use tokio::sync::{
     mpsc,
     mpsc::{Receiver, Sender},
 };
-use tokio_postgres::NoTls;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -72,33 +71,19 @@ async fn run(config: cli::Config) -> Result<()> {
         log::info!("spawning db task");
 
         log::debug!("connecting to db at {}", config.db_connection);
-        let (client, connection) = tokio_postgres::connect(config.db_connection.as_str(), NoTls)
-            .await
-            .wrap_err_with(|| format!("error connecting to db at {}", config.db_connection))?;
+        let pool = db::connect(config.db_connection.as_str()).await?;
 
-        let connection_handle = tokio::spawn(async move {
-            connection.await.wrap_err("db connection error")?;
-            Err::<(), Report>(eyre!("db connection task ended unexpectedly"))
-        });
+        while let Some(analysis) = analysis_rx.recv().await {
+            db::insert_analysis_into_db(&analysis, &pool)
+                .await
+                .wrap_err_with(|| {
+                    format!(
+                        "failed to insert analysis for block {} into db",
+                        analysis.beacon_block
+                    )
+                })?;
+        }
 
-        let insert_handle = tokio::spawn(async move {
-            while let Some(analysis) = analysis_rx.recv().await {
-                db::insert_analysis_into_db(&analysis, &client)
-                    .await
-                    .wrap_err_with(|| {
-                        format!(
-                            "failed to insert analysis for block {} into db",
-                            analysis.beacon_block
-                        )
-                    })?;
-            }
-            Err::<(), Report>(eyre!("db insert task ended unexpectedly"))
-        });
-
-        tokio::select! {
-            r = connection_handle => r,
-            r = insert_handle => r,
-        }??;
         Err::<(), Report>(eyre!("db task ended unexpectedly"))
     });
 
@@ -119,12 +104,30 @@ async fn run(config: cli::Config) -> Result<()> {
     Ok(())
 }
 
-async fn create_db(_config: cli::Config) -> Result<()> {
-    log::info!("create db");
+async fn create_db(config: cli::Config) -> Result<()> {
+    log::info!(
+        "creating db tables at {} if they do not exist",
+        config.db_connection
+    );
+    let pool = db::connect(config.db_connection.as_str())
+        .await
+        .wrap_err("failed to connect to db")?;
+    db::create_db(&pool)
+        .await
+        .wrap_err("failed to create db tables")?;
     Ok(())
 }
 
-async fn drop_db(_config: cli::Config) -> Result<()> {
-    log::info!("drop db");
+async fn drop_db(config: cli::Config) -> Result<()> {
+    log::info!(
+        "dropping db tables at {} if they exist",
+        config.db_connection
+    );
+    let pool = db::connect(config.db_connection.as_str())
+        .await
+        .wrap_err("failed to connect to db")?;
+    db::drop_db(&pool)
+        .await
+        .wrap_err("failed to drop db tables")?;
     Ok(())
 }
