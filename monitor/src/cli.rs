@@ -23,10 +23,8 @@ pub struct Cli {
 pub enum Commands {
     /// Run the monitor
     Run,
-    /// Create the database if it does not exist
-    CreateDB,
-    /// Delete the database if it exists
-    DropDB,
+    /// Delete all data from the database
+    TruncateDB,
 }
 
 #[derive(Deserialize, Debug, Clone)]

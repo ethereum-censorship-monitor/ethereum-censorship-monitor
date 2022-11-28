@@ -22,6 +22,16 @@
     },
     "query": "\n        INSERT INTO beacon_block (\n            root\n        ) VALUES (\n            $1\n        ) ON CONFLICT DO NOTHING;\n        "
   },
+  "ae25c88fccbb8bb1affbf058eee49f67371750cf34680c63da51c047b7b34416": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n        TRUNCATE miss, transaction, beacon_block RESTART IDENTITY;\n        "
+  },
   "cd8ddda79531ddde137c0dc154b435e53ff782db6876c69e133412631444bd79": {
     "describe": {
       "columns": [],

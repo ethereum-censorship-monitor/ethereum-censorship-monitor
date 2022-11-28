@@ -32,8 +32,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         cli::Commands::Run => run(config).await,
-        cli::Commands::CreateDB => create_db(config).await,
-        cli::Commands::DropDB => drop_db(config).await,
+        cli::Commands::TruncateDB => truncate_db(config).await,
     }
 }
 
@@ -73,6 +72,10 @@ async fn run(config: cli::Config) -> Result<()> {
         log::debug!("connecting to db at {}", config.db_connection);
         let pool = db::connect(config.db_connection.as_str()).await?;
 
+        db::migrate(&pool)
+            .await
+            .wrap_err("failed to apply db migrations")?;
+
         while let Some(analysis) = analysis_rx.recv().await {
             db::insert_analysis_into_db(&analysis, &pool)
                 .await
@@ -104,29 +107,12 @@ async fn run(config: cli::Config) -> Result<()> {
     Ok(())
 }
 
-async fn create_db(config: cli::Config) -> Result<()> {
-    log::info!(
-        "creating db tables at {} if they do not exist",
-        config.db_connection
-    );
+async fn truncate_db(config: cli::Config) -> Result<()> {
+    log::info!("drop all data from db at {}", config.db_connection);
     let pool = db::connect(config.db_connection.as_str())
         .await
         .wrap_err("failed to connect to db")?;
-    db::create_db(&pool)
-        .await
-        .wrap_err("failed to create db tables")?;
-    Ok(())
-}
-
-async fn drop_db(config: cli::Config) -> Result<()> {
-    log::info!(
-        "dropping db tables at {} if they exist",
-        config.db_connection
-    );
-    let pool = db::connect(config.db_connection.as_str())
-        .await
-        .wrap_err("failed to connect to db")?;
-    db::drop_db(&pool)
+    db::truncate(&pool)
         .await
         .wrap_err("failed to drop db tables")?;
     Ok(())

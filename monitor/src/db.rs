@@ -10,70 +10,19 @@ pub async fn connect(s: &str) -> Result<Pool, sqlx::Error> {
         .await
 }
 
-pub async fn create_db(pool: &sqlx::Pool<sqlx::Postgres>) -> Result<(), sqlx::Error> {
-    log::debug!("creating db tables");
-    let queries = [
-        sqlx::query!(
-            r#"
-            CREATE TABLE IF NOT EXISTS transaction (
-                hash char(66) PRIMARY KEY
-            );
-            "#
-        ),
-        sqlx::query!(
-            r#"
-            CREATE TABLE IF NOT EXISTS beacon_block (
-                root char(66) PRIMARY KEY
-            );
-            "#
-        ),
-        sqlx::query!(
-            r#"
-            CREATE TABLE IF NOT EXISTS miss (
-                transaction_hash char(66),
-                beacon_block_root char(66),
-                PRIMARY KEY (transaction_hash, beacon_block_root),
-                FOREIGN KEY (transaction_hash) REFERENCES transaction (hash),
-                FOREIGN KEY (beacon_block_root) REFERENCES beacon_block (root)
-            );
-            "#
-        ),
-    ];
-
-    let mut tx = pool.begin().await?;
-    for query in queries {
-        query.execute(&mut tx).await?;
-    }
-    tx.commit().await?;
-    log::debug!("db tables created");
-    Ok(())
+pub async fn migrate(pool: &Pool) -> Result<(), sqlx::migrate::MigrateError> {
+    sqlx::migrate!("./migrations").run(pool).await
 }
 
-pub async fn drop_db(pool: &sqlx::Pool<sqlx::Postgres>) -> Result<(), sqlx::Error> {
-    log::debug!("dropping db tables");
-    let queries = [
-        sqlx::query!(
-            r#"
-            DROP TABLE IF EXISTS miss;
-            "#
-        ),
-        sqlx::query!(
-            r#"
-            DROP TABLE IF EXISTS transaction;
-            "#
-        ),
-        sqlx::query!(
-            r#"
-            DROP TABLE IF EXISTS beacon_block;
-            "#
-        ),
-    ];
-    let mut tx = pool.begin().await?;
-    for query in queries {
-        query.execute(&mut tx).await?;
-    }
-    tx.commit().await?;
-    log::debug!("db tables dropped");
+pub async fn truncate(pool: &Pool) -> Result<(), sqlx::Error> {
+    log::debug!("truncating db");
+    sqlx::query!(
+        r#"
+        TRUNCATE miss, transaction, beacon_block RESTART IDENTITY;
+        "#
+    )
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
