@@ -276,17 +276,16 @@ mod test {
         let mut obs_tx = ObservedTransaction::new(H1, 10);
         assert!(obs_tx.is_visible_at(10));
         assert!(!obs_tx.is_visible_at(9));
-        assert!(!obs_tx.is_visible_at(11));
+        assert!(obs_tx.is_visible_at(100));
 
         obs_tx.observe_at(20);
         assert!(obs_tx.is_visible_at(10));
-        assert!(obs_tx.is_visible_at(20));
+        assert!(obs_tx.is_visible_at(100));
         assert!(!obs_tx.is_visible_at(9));
-        assert!(!obs_tx.is_visible_at(21));
 
-        obs_tx.disappear_at(20);
-        assert!(obs_tx.is_visible_at(19));
-        assert!(!obs_tx.is_visible_at(20));
+        obs_tx.disappear_at(30);
+        assert!(obs_tx.is_visible_at(29));
+        assert!(!obs_tx.is_visible_at(30));
     }
 
     #[test]
