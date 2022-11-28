@@ -13,9 +13,6 @@ use crate::{
     types::{BeaconBlock, NewBeaconHeadEvent, Timestamp, TxHash, TxpoolContent},
 };
 
-const BEACON_MERGE_ROOT_HEX: &str =
-    "810a00400a80cdffc11ffdcf17ac404ac4dba215b95221955a9dfddf163d0b0d";
-
 /// NodeConfig stores the RPC and websocket URLs to an Ethereum node.
 #[derive(Debug, Clone)]
 pub struct NodeConfig {
@@ -59,15 +56,24 @@ impl NodeConfig {
         p.get_block_number().await?;
 
         let p = self.consensus_provider();
-        let beacon_genesis_root: H256 =
-            H256::from_slice(hex::decode(BEACON_MERGE_ROOT_HEX).unwrap().as_slice());
-        p.fetch_beacon_block(beacon_genesis_root).await?;
+        p.fetch_sync_status().await?;
 
         let p = self.ws_provider().await?;
         let s = p.subscribe_pending_txs().await?;
         s.unsubscribe().await?;
 
         Ok(())
+    }
+
+    pub async fn is_syncing(&self) -> Result<bool, WatchError> {
+        let p = self.execution_provider();
+        let execution_sync_status = p.syncing().await?;
+        if !matches!(execution_sync_status, SyncingStatus::IsFalse) {
+            return Ok(true);
+        }
+        let p = self.consensus_provider();
+        let consensus_sync_status = p.fetch_sync_status().await?;
+        Ok(consensus_sync_status.is_syncing)
     }
 }
 

@@ -197,3 +197,13 @@ impl<T> ExecutionPayload<T> {
         }
     }
 }
+
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct ConsensusSyncStatus {
+    #[serde(deserialize_with = "from_dec_str")]
+    pub head_slot: U256,
+    #[serde(deserialize_with = "from_dec_str")]
+    pub sync_distance: U256,
+    pub is_syncing: bool,
+    pub is_optimistic: bool,
+}

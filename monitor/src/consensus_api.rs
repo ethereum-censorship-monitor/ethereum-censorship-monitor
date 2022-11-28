@@ -4,7 +4,7 @@ use serde::Deserialize;
 use thiserror::Error;
 use url::Url;
 
-use crate::types::{BeaconBlockWithoutRoot, SignedMessage, Transaction, H256};
+use crate::types::{BeaconBlockWithoutRoot, ConsensusSyncStatus, SignedMessage, Transaction, H256};
 
 #[derive(Error, Debug)]
 pub enum ConsensusAPIError {
@@ -20,7 +20,7 @@ pub enum ConsensusAPIError {
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct ConsensusAPIResponse<T> {
     pub data: T,
-    pub execution_optimistic: bool,
+    pub execution_optimistic: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -61,7 +61,7 @@ impl ConsensusProvider {
                 requested: String::from("beacon block"),
             })?;
 
-        if response.execution_optimistic {
+        if response.execution_optimistic.unwrap_or(false) {
             return Err(ConsensusAPIError::UnexpectedResponse {
                 description: String::from("consensus API response is optimistic"),
             });
@@ -92,5 +92,28 @@ impl ConsensusProvider {
         }
         let beacon_block = BeaconBlockWithoutRoot::with_transactions(response.data.message, txs);
         Ok(beacon_block)
+    }
+
+    pub async fn fetch_sync_status(&self) -> Result<ConsensusSyncStatus, ConsensusAPIError> {
+        let url = self.http_url.join("/eth/v1/node/syncing").unwrap();
+        let r = reqwest::get(url)
+            .await
+            .map_err(|e| ConsensusAPIError::ReqwestError {
+                source: e,
+                requested: String::from("sync status"),
+            })?
+            .error_for_status()
+            .map_err(|e| ConsensusAPIError::ReqwestError {
+                source: e,
+                requested: String::from("sync status"),
+            })?;
+        let response: ConsensusAPIResponse<ConsensusSyncStatus> =
+            r.json()
+                .await
+                .map_err(|e| ConsensusAPIError::ReqwestError {
+                    source: e,
+                    requested: String::from("sync status"),
+                })?;
+        Ok(response.data)
     }
 }

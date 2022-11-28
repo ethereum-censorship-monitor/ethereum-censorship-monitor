@@ -51,6 +51,14 @@ async fn run(config: cli::Config) -> Result<()> {
         .wrap_err("error connecting to Ethereum node")?;
     log::info!("node connection is up");
 
+    if node_config
+        .is_syncing()
+        .await
+        .wrap_err("error connecting to Ethereum node")?
+    {
+        return Err::<(), Report>(eyre!("node is still syncing"));
+    }
+
     let process_handle = tokio::spawn(async move {
         while let Some(event) = event_rx.recv().await {
             let analyses = state.process_event(event).await;
