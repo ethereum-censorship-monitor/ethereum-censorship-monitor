@@ -1,26 +1,34 @@
 {
   "db": "PostgreSQL",
-  "0b825bbbfac275ca7ac8796e2e69e5bb26dca6241c2842ed2bdadac525c64c58": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n            DROP TABLE IF EXISTS transaction;\n            "
-  },
-  "8f8c923f9b1ed91790d9cc035e070f288c8e2363850b56bf765aca23d2409a6d": {
+  "21717b08a8986dcd87151878f21b840c9073e4fc100920b899580199037e70bf": {
     "describe": {
       "columns": [],
       "nullable": [],
       "parameters": {
         "Left": [
-          "Bpchar"
+          "Bpchar",
+          "Bpchar",
+          "Int4"
         ]
       }
     },
-    "query": "\n        INSERT INTO beacon_block (\n            root\n        ) VALUES (\n            $1\n        ) ON CONFLICT DO NOTHING;\n        "
+    "query": "\n            INSERT INTO transaction (\n                hash,\n                sender,\n                first_seen\n            ) VALUES (\n                $1,\n                $2,\n                $3\n            ) ON CONFLICT DO NOTHING;\n            "
+  },
+  "248937f5a213c3eff869befc1fcc2707db888402c1d9b72a4f80bbc20cbb6847": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Bpchar",
+          "Int4",
+          "Int4",
+          "Bpchar",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n        INSERT INTO beacon_block (\n            root,\n            slot,\n            proposer_index,\n            execution_block_hash,\n            execution_block_number\n        ) VALUES (\n            $1,\n            $2,\n            $3,\n            $4,\n            $5\n        ) ON CONFLICT DO NOTHING;\n        "
   },
   "ae25c88fccbb8bb1affbf058eee49f67371750cf34680c63da51c047b7b34416": {
     "describe": {
@@ -31,28 +39,6 @@
       }
     },
     "query": "\n        TRUNCATE miss, transaction, beacon_block RESTART IDENTITY;\n        "
-  },
-  "cd8ddda79531ddde137c0dc154b435e53ff782db6876c69e133412631444bd79": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Bpchar"
-        ]
-      }
-    },
-    "query": "\n            INSERT INTO transaction (\n                hash\n            ) VALUES (\n                $1\n            ) ON CONFLICT DO NOTHING;\n            "
-  },
-  "f0d8d3bc638b447594e9e51e4108f85816953b42e7ccae378cd014dcef19a39c": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n            DROP TABLE IF EXISTS beacon_block;\n            "
   },
   "f5e5cf9fddc4a93dbfd84378344af73a91e49b56747f8c8b22c7a6c1c7965bb4": {
     "describe": {
@@ -66,15 +52,5 @@
       }
     },
     "query": "\n            INSERT INTO miss (\n                transaction_hash,\n                beacon_block_root\n            ) VALUES (\n                $1,\n                $2\n            ) ON CONFLICT DO NOTHING;\n            "
-  },
-  "fd0fb8a7c3feebfe5381ed6f892b3104568e688b60a88dbcbddd8e7ef9663c7f": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n            DROP TABLE IF EXISTS miss;\n            "
   }
 }

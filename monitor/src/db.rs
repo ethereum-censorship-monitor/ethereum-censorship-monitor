@@ -1,3 +1,5 @@
+use hex::ToHex;
+
 use crate::analyze::Analysis;
 
 type Pool = sqlx::Pool<sqlx::Postgres>;
@@ -30,32 +32,58 @@ pub async fn insert_analysis_into_db(analysis: &Analysis, pool: &Pool) -> Result
     log::debug!("persisting analysis for block {}", analysis.beacon_block);
 
     let mut tx = pool.begin().await?;
-    let beacon_root_str = &analysis.beacon_block.root.to_string();
+    let block = &analysis.beacon_block;
+    let exec = &block.body.execution_payload;
+    let beacon_root_str = encode_hex_prefixed(block.root);
+
     sqlx::query!(
         r#"
         INSERT INTO beacon_block (
-            root
+            root,
+            slot,
+            proposer_index,
+            execution_block_hash,
+            execution_block_number
         ) VALUES (
-            $1
+            $1,
+            $2,
+            $3,
+            $4,
+            $5
         ) ON CONFLICT DO NOTHING;
         "#,
-        beacon_root_str
+        beacon_root_str,
+        block.slot.as_u64() as i64,
+        block.proposer_index.as_u64() as i64,
+        encode_hex_prefixed(exec.block_hash),
+        exec.block_number.as_u64() as i64,
     )
     .execute(&mut tx)
     .await?;
 
     for missing_transaction in analysis.missing_transactions.values() {
-        let transaction_hash_str = missing_transaction.hash.to_string();
+        if missing_transaction.transaction.is_none() {
+            log::error!("tried to insert transaction without body into db");
+            continue;
+        }
+        let transaction = missing_transaction.transaction.as_ref().unwrap();
+        let transaction_hash_str = encode_hex_prefixed(transaction.hash);
         let queries = [
             sqlx::query!(
                 r#"
             INSERT INTO transaction (
-                hash
+                hash,
+                sender,
+                first_seen
             ) VALUES (
-                $1
+                $1,
+                $2,
+                $3
             ) ON CONFLICT DO NOTHING;
             "#,
                 transaction_hash_str,
+                encode_hex_prefixed(transaction.from),
+                missing_transaction.interval.0 as i64,
             ),
             sqlx::query!(
                 r#"
@@ -78,4 +106,8 @@ pub async fn insert_analysis_into_db(analysis: &Analysis, pool: &Pool) -> Result
     tx.commit().await?;
     log::debug!("persisted analysis in db");
     Ok(())
+}
+
+fn encode_hex_prefixed<T: ToHex>(v: T) -> String {
+    String::from("0x") + v.encode_hex::<String>().as_str()
 }
