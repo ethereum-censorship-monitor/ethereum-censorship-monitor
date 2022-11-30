@@ -120,6 +120,11 @@ async fn truncate_db(config: cli::Config) -> Result<()> {
     let pool = db::connect(config.db_connection.as_str())
         .await
         .wrap_err("failed to connect to db")?;
+
+    db::migrate(&pool)
+        .await
+        .wrap_err("failed to apply db migrations")?;
+
     db::truncate(&pool)
         .await
         .wrap_err("failed to drop db tables")?;
