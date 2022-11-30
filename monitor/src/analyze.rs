@@ -221,8 +221,8 @@ pub async fn analyze(
     let exec = &beacon_block.body.execution_payload;
     let txs_in_block: HashSet<&TxHash> =
         HashSet::from_iter(exec.transactions.iter().map(|tx| &tx.hash));
-    let senders_and_nonces_in_block: HashSet<(&Address, &U256)> =
-        HashSet::from_iter(exec.transactions.iter().map(|tx| (&tx.from, &tx.nonce)));
+    let senders_in_block: HashSet<&Address> =
+        HashSet::from_iter(exec.transactions.iter().map(|tx| &tx.from));
     let proposal_time = beacon_block.proposal_time();
     let pool_at_t = pool.content_at(proposal_time);
 
@@ -245,7 +245,7 @@ pub async fn analyze(
             continue;
         }
         let tx = obs_tx.transaction.as_ref().unwrap();
-        if senders_and_nonces_in_block.contains(&(&tx.from, &tx.nonce)) {
+        if senders_in_block.contains(&tx.from) {
             num_replaced_txs += 1;
             continue;
         }
