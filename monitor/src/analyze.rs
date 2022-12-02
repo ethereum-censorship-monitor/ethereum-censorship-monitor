@@ -165,10 +165,12 @@ fn get_min_tip(transactions: &[Transaction], base_fee: U256) -> U256 {
 #[derive(Debug)]
 pub struct Analysis {
     pub beacon_block: BeaconBlock<Transaction>,
+    pub quorum: usize,
     pub missing_transactions: HashMap<TxHash, ObservedTransaction>,
     pub included_transactions: HashMap<TxHash, ObservedTransaction>,
     pub num_txs_in_block: usize,
     pub num_txs_in_pool: usize,
+    pub num_quorum_not_reached: usize,
     pub num_only_tx_hash: usize,
     pub num_replaced_txs: usize,
     pub non_inclusion_reasons: HashMap<NonInclusionReason, usize>,
@@ -179,15 +181,16 @@ impl Analysis {
     pub fn summary(&self) -> String {
         format!(
             "Analysis for block {beacon_block}: {included} txs from pool included, {missing} \
-             missed, {in_pool} in pool, {in_block} in block, {only_hash} only hash known, \
-             {replaced} replaced, {nonce_mismatch} nonce mismatch, {not_enough_space} not enough \
-             space, {base_fee_too_low} base fee too low, {tip_too_low} tip too low, took \
-             {duration:.1}s",
+             missed, {in_pool} in pool, {in_block} in block, {quorum_not_reached} quorum not \
+             reached, {only_hash} only hash known, {replaced} replaced, {nonce_mismatch} nonce \
+             mismatch, {not_enough_space} not enough space, {base_fee_too_low} base fee too low, \
+             {tip_too_low} tip too low, took {duration:.1}s",
             beacon_block = self.beacon_block,
             included = self.included_transactions.len(),
             missing = self.missing_transactions.len(),
             in_pool = self.num_txs_in_pool,
             in_block = self.num_txs_in_block,
+            quorum_not_reached = self.num_quorum_not_reached,
             only_hash = self.num_only_tx_hash,
             replaced = self.num_replaced_txs,
             nonce_mismatch = self
@@ -215,6 +218,7 @@ pub async fn analyze(
     beacon_block: &BeaconBlock<Transaction>,
     pool: &Pool,
     nonce_cache: &mut NonceCache,
+    quorum: usize,
 ) -> Result<Analysis, NonceCacheError> {
     let start_time = Instant::now();
 
@@ -231,6 +235,7 @@ pub async fn analyze(
 
     let mut included_txs = HashMap::new();
     let mut num_only_tx_hash = 0;
+    let mut num_quorum_not_reached = 0;
     let mut num_replaced_txs = 0;
     let mut missing_txs = HashMap::new();
     let mut non_inclusion_reasons = HashMap::new();
@@ -238,6 +243,10 @@ pub async fn analyze(
     for (hash, obs_tx) in pool_at_t {
         if txs_in_block.contains(&hash) {
             included_txs.insert(hash, obs_tx);
+            continue;
+        }
+        if obs_tx.num_nodes_seen(proposal_time) < quorum {
+            num_quorum_not_reached += 1;
             continue;
         }
         if obs_tx.transaction.is_none() {
@@ -273,9 +282,11 @@ pub async fn analyze(
 
     Ok(Analysis {
         beacon_block: beacon_block.clone(),
+        quorum,
         missing_transactions: missing_txs,
         included_transactions: included_txs,
         num_txs_in_block,
+        num_quorum_not_reached,
         num_txs_in_pool,
         num_only_tx_hash,
         num_replaced_txs,

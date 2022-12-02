@@ -68,6 +68,15 @@ pub async fn insert_analysis_into_db(analysis: &Analysis, pool: &Pool) -> Result
         }
         let transaction = missing_transaction.transaction.as_ref().unwrap();
         let transaction_hash_str = encode_hex_prefixed(transaction.hash);
+
+        // TODO: store both first_seen and quorum_reached timestamp in db
+        let first_seen = missing_transaction.quorum_reached_timestamp(analysis.quorum);
+        if first_seen.is_none() {
+            log::error!("transaction without quorum considered as missing");
+            continue;
+        }
+        let first_seen = first_seen.unwrap();
+
         let queries = [
             sqlx::query!(
                 r#"
@@ -83,7 +92,7 @@ pub async fn insert_analysis_into_db(analysis: &Analysis, pool: &Pool) -> Result
             "#,
                 transaction_hash_str,
                 encode_hex_prefixed(transaction.from),
-                missing_transaction.interval.0 as i64,
+                first_seen as i64,
             ),
             sqlx::query!(
                 r#"

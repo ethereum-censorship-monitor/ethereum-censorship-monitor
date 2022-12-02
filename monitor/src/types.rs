@@ -9,6 +9,8 @@ pub type Timestamp = u64;
 
 pub const GENESIS_TIME: Timestamp = 1606824023;
 
+pub type NodeKey = usize;
+
 trait FromDecStr: Sized {
     fn from_dec_str(value: &str) -> Result<Self, FromDecStrErr>;
 }

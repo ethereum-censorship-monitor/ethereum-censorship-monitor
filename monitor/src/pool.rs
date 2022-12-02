@@ -1,80 +1,81 @@
-use std::{
-    cmp::{max, min},
-    collections::HashMap,
-};
+use std::{cmp::min, collections::HashMap};
 
 use ethers::types::TxpoolContent;
 
-use crate::types::{Timestamp, Transaction, TxHash};
+use crate::types::{NodeKey, Timestamp, Transaction, TxHash};
 
 /// ObservedTransaction stores a transaction hash and optionally a transaction
-/// body along with information about its observation history. Three timestamps
-/// make up the history: The first two define an interval in which the
-/// transaction was visible and the last one the (optional) time at which is was
-/// first observed to have disappeared.
+/// body along with information about its observation history. For each node it
+/// stores the timestamp at which they have first observed the transaction. In
+/// addition, it stores the timestamp at which the transactions was first
+/// observed to have disappeared from the pool on the main node.
 #[derive(Debug, Clone)]
 pub struct ObservedTransaction {
     pub hash: TxHash,
     pub transaction: Option<Transaction>,
-    pub interval: (Timestamp, Timestamp),
+    pub first_seen: HashMap<NodeKey, Timestamp>,
     pub disappeared: Option<Timestamp>,
 }
 
 impl ObservedTransaction {
-    /// Create a new transaction with a hash observed at a given timestamp.
-    pub fn new(hash: TxHash, timestamp: Timestamp) -> Self {
+    /// Create a new transaction identified by its hash.
+    pub fn new(hash: TxHash) -> Self {
         ObservedTransaction {
             hash,
             transaction: None,
-            interval: (timestamp, timestamp),
+            first_seen: HashMap::new(),
             disappeared: None,
         }
     }
 
-    /// Update the history with an observation at which the transaction was
-    /// seen. The observation interval will be extended to include the new
-    /// timestamp. In the case that the transaction has already disappeared
-    /// at this time, the observation history will be reset completely. This is
-    /// because reappearing transaction cannot be represented.
-    pub fn observe_at(&mut self, timestamp: Timestamp) {
-        if !self.has_disappeared_at(timestamp) {
-            self.interval = (
-                min(self.interval.0, timestamp),
-                max(self.interval.1, timestamp),
-            );
-        } else {
-            self.interval = (timestamp, timestamp);
-            self.disappeared = None;
-        }
-    }
-
-    /// Update the history with an observation at which the transaction was not
-    /// seen. This sets the disappeared timestamp if it is lower than the
-    /// existing one. In the case that the given timestamp falls into the
-    /// seen interval, the interval will be clamped in order to ensure there
-    /// is no overlap between the seen interval and the disappeared period.
-    pub fn disappear_at(&mut self, timestamp: Timestamp) {
-        let t = self.disappeared.get_or_insert(Timestamp::MAX);
+    /// Set the first seen time at the given node. If a timestamp has already
+    /// been recorded for the node, keep the earlier one.
+    pub fn observe(&mut self, node_key: NodeKey, timestamp: Timestamp) {
+        let t = self.first_seen.entry(node_key).or_insert(timestamp);
         *t = min(*t, timestamp);
-        self.interval = (
-            min(self.interval.0, timestamp),
-            min(self.interval.1, timestamp),
-        );
     }
 
-    /// Check if the transaction is visible at a given timestamp.
-    pub fn is_visible_at(&self, timestamp: Timestamp) -> bool {
-        timestamp >= self.interval.0 && !self.has_disappeared_at(timestamp)
+    /// Set the disappeared timestamp. If a timestamp has already been recorded,
+    /// keep the earlier one.
+    pub fn disappear_at(&mut self, timestamp: Timestamp) {
+        let t = self.disappeared.get_or_insert(timestamp);
+        *t = min(*t, timestamp);
     }
 
-    /// Check if the transaction has disappeared already at a given timestamp.
-    pub fn has_disappeared_at(&self, timestamp: Timestamp) -> bool {
+    /// Delete both first seen and disappearance timestamps.
+    pub fn clear_observations(&mut self) {
+        self.first_seen.clear();
+        self.disappeared = None;
+    }
+
+    /// Count the number of nodes that have seen the transactions at or before
+    /// the given timestamps.
+    pub fn num_nodes_seen(&self, timestamp: Timestamp) -> usize {
+        self.first_seen
+            .values()
+            .filter(|&&t| t <= timestamp)
+            .count()
+    }
+
+    /// Return the earliest timestamp at which a given number of nodes have seen
+    /// the transaction.
+    pub fn quorum_reached_timestamp(&self, quorum: usize) -> Option<Timestamp> {
+        let mut timestamps: Vec<&Timestamp> = self.first_seen.values().collect();
+        if timestamps.len() < quorum {
+            return None;
+        }
+        timestamps.sort();
+        Some(*timestamps[quorum - 1])
+    }
+
+    /// Check if the transaction has disappeared at or before the given
+    /// timestamp.
+    pub fn has_disappeared_before(&self, timestamp: Timestamp) -> bool {
         self.disappeared.map_or(false, |t| timestamp >= t)
     }
 }
 
-/// The pool keeps track of the elements we observe in a node's transaction
-/// pool.
+/// This struct keeps track of transactions we observed in the network.
 #[derive(Debug)]
 pub struct Pool(HashMap<TxHash, ObservedTransaction>);
 
@@ -84,28 +85,34 @@ impl Pool {
         Pool(HashMap::new())
     }
 
-    /// Get the transactions that are visible at the given timestamp.
+    /// Get the transactions that have been observed at least once at or before
+    /// the given timestamp and have not disappeared yet.
     pub fn content_at(&self, timestamp: Timestamp) -> HashMap<TxHash, ObservedTransaction> {
         self.0
             .values()
-            .filter(|tx| tx.is_visible_at(timestamp))
+            .filter(|tx| tx.num_nodes_seen(timestamp) >= 1 && !tx.has_disappeared_before(timestamp))
             .map(|tx| (tx.hash, tx.clone()))
             .collect()
     }
 
-    /// Insert a transaction into the pool only knowing the hash and observation
-    /// timestamp.
-    pub fn pre_announce_transaction(&mut self, timestamp: Timestamp, hash: TxHash) {
+    /// Insert a transaction into the pool observed on the given node at the
+    /// given time.
+    pub fn observe_transaction(&mut self, node_key: NodeKey, timestamp: Timestamp, hash: TxHash) {
         self.0
             .entry(hash)
-            .or_insert_with(|| ObservedTransaction::new(hash, timestamp))
-            .observe_at(timestamp);
+            .or_insert_with(|| ObservedTransaction::new(hash))
+            .observe(node_key, timestamp);
     }
 
-    /// Update the pool with a full snapshot of transactions in it taken at a
-    /// given time. This not only inserts the transactions, it also marks
-    /// transactions that are missing as disappeared.
-    pub fn observe(&mut self, timestamp: Timestamp, content: TxpoolContent) {
+    /// Update the pool with a full snapshot of transactions in it taken on the
+    /// given node at a given time. This not only inserts the transactions,
+    /// but also marks transactions that are missing as disappeared.
+    pub fn observe_pool(
+        &mut self,
+        node_key: NodeKey,
+        timestamp: Timestamp,
+        content: TxpoolContent,
+    ) {
         let txs: HashMap<TxHash, &Transaction> = content
             .pending
             .values()
@@ -122,16 +129,17 @@ impl Pool {
         for (tx_hash, &tx) in &txs {
             let obs_tx = self.0.entry(*tx_hash).or_insert_with(|| {
                 num_new += 1;
-                ObservedTransaction::new(*tx_hash, timestamp)
+                ObservedTransaction::new(*tx_hash)
             });
             if obs_tx.transaction.is_none() {
                 num_new_objects += 1;
                 obs_tx.transaction = Some(tx.clone());
             }
-            if obs_tx.has_disappeared_at(timestamp) {
+            if obs_tx.has_disappeared_before(timestamp) {
                 num_reappeared += 1;
+                obs_tx.clear_observations();
             }
-            obs_tx.observe_at(timestamp);
+            obs_tx.observe(node_key, timestamp);
         }
         let num_backfills = num_new_objects - num_new;
 
@@ -139,7 +147,7 @@ impl Pool {
         let mut num_disappeared = 0;
         for (tx_hash, obs_tx) in self.0.iter_mut() {
             if !txs.contains_key(tx_hash) {
-                if !obs_tx.has_disappeared_at(timestamp) {
+                if !obs_tx.has_disappeared_before(timestamp) {
                     num_disappeared += 1;
                 }
                 obs_tx.disappear_at(timestamp);
@@ -164,7 +172,7 @@ impl Pool {
     pub fn prune(&mut self, cutoff: Timestamp) {
         let len_before = self.0.len();
         self.0
-            .retain(|_, obs_tx| !obs_tx.has_disappeared_at(cutoff));
+            .retain(|_, obs_tx| !obs_tx.has_disappeared_before(cutoff));
         let len_after = self.0.len();
         log::debug!(
             "pruned pool from {} to {} by {} transactions",
@@ -204,10 +212,10 @@ mod test {
 
     fn assert_content(
         c: HashMap<TxHash, ObservedTransaction>,
-        v: Vec<(TxHash, bool, (Timestamp, Timestamp), Option<Timestamp>)>,
+        v: Vec<(TxHash, bool, Vec<Timestamp>, Option<Timestamp>)>,
     ) {
         assert_eq!(c.len(), v.len());
-        for (h, has_body, interval, disappeared) in v {
+        for (h, has_body, first_seen, disappeared) in v {
             let obs_tx = c.get(&h).unwrap();
             assert_eq!(obs_tx.hash, h);
             if has_body {
@@ -215,133 +223,130 @@ mod test {
             } else {
                 assert!(obs_tx.transaction.is_none());
             }
-            assert_eq!(obs_tx.interval, interval);
+            assert_eq!(obs_tx.first_seen.len(), first_seen.len());
+            for (i, t) in first_seen.iter().enumerate() {
+                assert_eq!(obs_tx.first_seen.get(&(i as u64)).unwrap(), t);
+            }
             assert_eq!(obs_tx.disappeared, disappeared);
         }
     }
 
     #[test]
     fn test_tx_new() {
-        let obs_tx = ObservedTransaction::new(H1, 10);
+        let obs_tx = ObservedTransaction::new(H1);
         assert_eq!(obs_tx.hash, H1);
         assert!(obs_tx.transaction.is_none());
-        assert_eq!(obs_tx.interval, (10, 10));
+        assert!(obs_tx.first_seen.is_empty());
         assert!(obs_tx.disappeared.is_none());
     }
 
     #[test]
-    fn test_tx_observe_expands_interval() {
-        let mut obs_tx = ObservedTransaction::new(H1, 10);
-        obs_tx.observe_at(20);
-        assert_eq!(obs_tx.interval, (10, 20));
-        obs_tx.observe_at(5);
-        assert_eq!(obs_tx.interval, (5, 20));
-        obs_tx.disappear_at(30);
-        obs_tx.observe_at(25);
-        assert_eq!(obs_tx.interval, (5, 25))
+    fn test_tx_observe() {
+        let mut obs_tx = ObservedTransaction::new(H1);
+        assert_eq!(obs_tx.first_seen.len(), 0);
+        assert_eq!(obs_tx.num_nodes_seen(0), 0);
+
+        obs_tx.observe(0, 20);
+        assert_eq!(obs_tx.first_seen.len(), 1);
+        assert_eq!(*obs_tx.first_seen.get(&0).unwrap(), 20);
+        assert_eq!(obs_tx.num_nodes_seen(19), 0);
+        assert_eq!(obs_tx.num_nodes_seen(20), 1);
+
+        obs_tx.observe(0, 25);
+        assert_eq!(obs_tx.first_seen.len(), 1);
+        assert_eq!(*obs_tx.first_seen.get(&0).unwrap(), 20);
+
+        obs_tx.observe(0, 15);
+        assert_eq!(obs_tx.first_seen.len(), 1);
+        assert_eq!(*obs_tx.first_seen.get(&0).unwrap(), 15);
+        assert_eq!(obs_tx.num_nodes_seen(14), 0);
+        assert_eq!(obs_tx.num_nodes_seen(15), 1);
+
+        obs_tx.observe(1, 20);
+        assert_eq!(obs_tx.first_seen.len(), 2);
+        assert_eq!(*obs_tx.first_seen.get(&0).unwrap(), 15);
+        assert_eq!(*obs_tx.first_seen.get(&1).unwrap(), 20);
+        assert_eq!(obs_tx.num_nodes_seen(19), 1);
+        assert_eq!(obs_tx.num_nodes_seen(20), 2);
     }
 
     #[test]
     fn test_tx_disappear() {
-        let mut obs_tx = ObservedTransaction::new(H1, 10);
+        let mut obs_tx = ObservedTransaction::new(H1);
         assert!(obs_tx.disappeared.is_none());
+        assert!(!obs_tx.has_disappeared_before(100));
+
         obs_tx.disappear_at(20);
         assert_eq!(obs_tx.disappeared, Some(20));
+        assert!(!obs_tx.has_disappeared_before(19));
+        assert!(obs_tx.has_disappeared_before(20));
+
         obs_tx.disappear_at(25);
         assert_eq!(obs_tx.disappeared, Some(20));
+
         obs_tx.disappear_at(15);
         assert_eq!(obs_tx.disappeared, Some(15));
+        assert!(!obs_tx.has_disappeared_before(14));
+        assert!(obs_tx.has_disappeared_before(15));
     }
 
     #[test]
-    fn test_tx_interval_disappear_overlap() {
-        let mut obs_tx = ObservedTransaction::new(H1, 10);
-        obs_tx.observe_at(20);
-        obs_tx.disappear_at(15);
-        assert_eq!(obs_tx.interval, (10, 15));
-        assert_eq!(obs_tx.disappeared, Some(15));
-    }
-
-    #[test]
-    fn test_tx_reset() {
-        let mut obs_tx = ObservedTransaction::new(H1, 10);
-        obs_tx.disappear_at(15);
-        obs_tx.observe_at(15);
-        assert_eq!(obs_tx.interval, (15, 15));
+    fn test_tx_clear() {
+        let mut obs_tx = ObservedTransaction::new(H1);
+        obs_tx.observe(0, 10);
+        obs_tx.disappear_at(20);
+        obs_tx.clear_observations();
+        assert!(obs_tx.first_seen.is_empty());
         assert!(obs_tx.disappeared.is_none());
     }
 
     #[test]
-    fn test_tx_is_visible() {
-        let mut obs_tx = ObservedTransaction::new(H1, 10);
-        assert!(obs_tx.is_visible_at(10));
-        assert!(!obs_tx.is_visible_at(9));
-        assert!(obs_tx.is_visible_at(100));
-
-        obs_tx.observe_at(20);
-        assert!(obs_tx.is_visible_at(10));
-        assert!(obs_tx.is_visible_at(100));
-        assert!(!obs_tx.is_visible_at(9));
-
-        obs_tx.disappear_at(30);
-        assert!(obs_tx.is_visible_at(29));
-        assert!(!obs_tx.is_visible_at(30));
-    }
-
-    #[test]
-    fn test_tx_has_disappeared() {
-        let mut obs_tx = ObservedTransaction::new(H1, 10);
-        obs_tx.disappear_at(20);
-        assert!(!obs_tx.has_disappeared_at(19));
-        assert!(obs_tx.has_disappeared_at(20));
-    }
-
-    #[test]
-    fn test_observe() {
+    fn test_observe_pool() {
         let mut p = Pool::new();
-        p.observe(10, make_pool(vec![H1, H2]));
-        p.observe(20, make_pool(vec![H1]));
+        p.observe_pool(0, 10, make_pool(vec![H1, H2]));
+        p.observe_pool(0, 20, make_pool(vec![H1]));
 
         assert_content(p.content_at(9), vec![].into_iter().collect());
         assert_content(
             p.content_at(10),
-            vec![(H1, true, (10, 20), None), (H2, true, (10, 10), Some(20))]
+            vec![(H1, true, vec![10], None), (H2, true, vec![10], Some(20))]
                 .into_iter()
                 .collect(),
         );
         assert_content(
             p.content_at(20),
-            vec![(H1, true, (10, 20), None)].into_iter().collect(),
+            vec![(H1, true, vec![10], None)].into_iter().collect(),
         );
     }
 
     #[test]
-    fn test_pre_announce() {
+    fn test_observe_transaction() {
         let mut p = Pool::new();
-        p.pre_announce_transaction(10, H1);
+        p.observe_transaction(0, 10, H1);
+        p.observe_transaction(1, 11, H1);
         assert_content(
             p.content_at(10),
-            vec![(H1, false, (10, 10), None)].into_iter().collect(),
+            vec![(H1, false, vec![10, 11], None)].into_iter().collect(),
         );
     }
 
     #[test]
-    fn test_pre_announce_backfill() {
+    fn test_backfill() {
         let mut p = Pool::new();
-        p.pre_announce_transaction(10, H1);
-        p.observe(20, make_pool(vec![H1]));
+        p.observe_transaction(0, 10, H1);
+        p.observe_pool(0, 20, make_pool(vec![H1]));
         assert_content(
             p.content_at(10),
-            vec![(H1, true, (10, 20), None)].into_iter().collect(),
+            vec![(H1, true, vec![10], None)].into_iter().collect(),
         );
     }
 
     #[test]
     fn test_prune() {
         let mut p = Pool::new();
-        p.observe(10, make_pool(vec![H1, H2]));
-        p.observe(20, make_pool(vec![H1]));
-        p.observe(30, make_pool(vec![]));
+        p.observe_pool(0, 10, make_pool(vec![H1, H2]));
+        p.observe_pool(0, 20, make_pool(vec![H1]));
+        p.observe_pool(0, 30, make_pool(vec![]));
         assert_eq!(p.content_at(10).len(), 2);
 
         p.prune(19);
@@ -351,7 +356,7 @@ mod test {
         assert_eq!(p.content_at(10).len(), 1);
         assert_content(
             p.content_at(10),
-            vec![(H1, true, (10, 20), Some(30))].into_iter().collect(),
+            vec![(H1, true, vec![10], Some(30))].into_iter().collect(),
         );
     }
 }

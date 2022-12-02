@@ -5,7 +5,7 @@ use crate::{
     head_history::HeadHistory,
     nonce_cache::NonceCache,
     pool::Pool,
-    types::{BeaconBlock, Timestamp, TxHash, TxpoolContent},
+    types::{BeaconBlock, NodeKey, Timestamp, TxHash, TxpoolContent},
     watch::{Event, NodeConfig},
 };
 
@@ -17,6 +17,8 @@ pub struct State {
     nonce_cache: NonceCache,
 
     analysis_queue: Vec<BeaconBlock<Transaction>>,
+
+    quorum: usize,
 }
 
 impl State {
@@ -24,7 +26,7 @@ impl State {
         let pool = Pool::new();
         let head_history = HeadHistory::new();
 
-        let nonce_cache_provider = node_config.execution_provider();
+        let nonce_cache_provider = node_config.execution_http_provider();
         let nonce_cache = NonceCache::new(nonce_cache_provider);
 
         State {
@@ -33,35 +35,53 @@ impl State {
             nonce_cache,
 
             analysis_queue: Vec::new(),
+
+            quorum: node_config.execution_ws_urls.len(),
         }
     }
 
     pub async fn process_event(&mut self, event: Event) -> Vec<Analysis> {
         match event {
-            Event::NewTransaction { hash, timestamp } => {
-                self.process_new_transaction_event(hash, timestamp).await
+            Event::NewTransaction {
+                node,
+                hash,
+                timestamp,
+            } => {
+                self.process_new_transaction_event(node, hash, timestamp)
+                    .await
             }
             Event::NewHead {
                 beacon_block,
                 timestamp,
             } => self.process_new_head_event(beacon_block, timestamp).await,
-            Event::TxpoolContent { content, timestamp } => {
-                self.process_txpool_content_event(content, timestamp).await
+            Event::TxpoolContent {
+                node,
+                content,
+                timestamp,
+            } => {
+                self.process_txpool_content_event(node, content, timestamp)
+                    .await
             }
         }
     }
 
-    async fn process_new_transaction_event(&mut self, hash: TxHash, t: Timestamp) -> Vec<Analysis> {
-        self.pool.pre_announce_transaction(t, hash);
+    async fn process_new_transaction_event(
+        &mut self,
+        node: NodeKey,
+        hash: TxHash,
+        t: Timestamp,
+    ) -> Vec<Analysis> {
+        self.pool.observe_transaction(node, t, hash);
         Vec::new()
     }
 
     async fn process_txpool_content_event(
         &mut self,
+        node: NodeKey,
         content: TxpoolContent,
         t: Timestamp,
     ) -> Vec<Analysis> {
-        self.pool.observe(t, content);
+        self.pool.observe_pool(node, t, content);
         self.pool.prune(t.saturating_sub(PRUNE_DELAY));
 
         let beacon_blocks = self.analysis_queue.clone();
@@ -119,7 +139,7 @@ impl State {
             }
         }
 
-        let analysis = analyze(beacon_block, &self.pool, &mut self.nonce_cache).await;
+        let analysis = analyze(beacon_block, &self.pool, &mut self.nonce_cache, self.quorum).await;
         match analysis {
             Ok(a) => Some(a),
             Err(e) => {

@@ -33,7 +33,7 @@ pub struct Config {
     pub log: String,
 
     pub execution_http_url: url::Url,
-    pub execution_ws_url: url::Url,
+    pub execution_ws_urls: Vec<url::Url>,
     pub consensus_http_url: url::Url,
 
     #[serde(default)]

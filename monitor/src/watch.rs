@@ -10,14 +10,14 @@ use tokio::sync::mpsc::Sender;
 use crate::{
     cli::Config,
     consensus_api::{ConsensusAPIError, ConsensusProvider},
-    types::{BeaconBlock, NewBeaconHeadEvent, Timestamp, TxHash, TxpoolContent},
+    types::{BeaconBlock, NewBeaconHeadEvent, NodeKey, Timestamp, TxHash, TxpoolContent},
 };
 
 /// NodeConfig stores the RPC and websocket URLs to an Ethereum node.
 #[derive(Debug, Clone)]
 pub struct NodeConfig {
     pub execution_http_url: url::Url,
-    pub execution_ws_url: url::Url,
+    pub execution_ws_urls: Vec<url::Url>,
     pub consensus_http_url: url::Url,
 }
 
@@ -25,24 +25,28 @@ impl NodeConfig {
     pub fn from(config: &Config) -> Self {
         NodeConfig {
             execution_http_url: config.execution_http_url.clone(),
-            execution_ws_url: config.execution_ws_url.clone(),
+            execution_ws_urls: config.execution_ws_urls.clone(),
             consensus_http_url: config.consensus_http_url.clone(),
         }
     }
 
     /// Create a provider for the node at http_url.
-    pub fn execution_provider(&self) -> Provider<Http> {
+    pub fn execution_http_provider(&self) -> Provider<Http> {
         let url = self.execution_http_url.as_str();
         // Unwrapping is fine as try_from only fails with a parse error if url is
         // invalid. Since we just serialized it, we know this is not the case.
         Provider::try_from(url).unwrap()
     }
 
-    /// Create and connect a websocket provider for the node at
-    /// execution_ws_url.
-    pub async fn ws_provider(&self) -> Result<Provider<Ws>, ProviderError> {
-        let url = self.execution_ws_url.as_str();
-        Provider::connect(url).await
+    /// Create and connect a websocket provider for each of the nodes at
+    /// execution_ws_urls.
+    pub async fn execution_ws_providers(&self) -> Result<Vec<Provider<Ws>>, ProviderError> {
+        let mut providers = Vec::new();
+        for url in &self.execution_ws_urls {
+            let provider = Provider::connect(url).await?;
+            providers.push(provider);
+        }
+        Ok(providers)
     }
 
     /// Create and connect a consensus node provider for the node at
@@ -51,22 +55,25 @@ impl NodeConfig {
         ConsensusProvider::new(self.consensus_http_url.clone())
     }
 
+    /// Check that all nodes are reachable.
     pub async fn test_connection(&self) -> Result<(), WatchError> {
-        let p = self.execution_provider();
+        let p = self.execution_http_provider();
         p.get_block_number().await?;
 
         let p = self.consensus_provider();
         p.fetch_sync_status().await?;
 
-        let p = self.ws_provider().await?;
-        let s = p.subscribe_pending_txs().await?;
-        s.unsubscribe().await?;
+        for p in self.execution_ws_providers().await? {
+            let s = p.subscribe_pending_txs().await?;
+            s.unsubscribe().await?;
+        }
 
         Ok(())
     }
 
+    /// Check if the main node is syncing. The websocket nodes are not checked.
     pub async fn is_syncing(&self) -> Result<bool, WatchError> {
-        let p = self.execution_provider();
+        let p = self.execution_http_provider();
         let execution_sync_status = p.syncing().await?;
         if !matches!(execution_sync_status, SyncingStatus::IsFalse) {
             return Ok(true);
@@ -80,6 +87,7 @@ impl NodeConfig {
 #[derive(Debug)]
 pub enum Event {
     NewTransaction {
+        node: NodeKey,
         hash: TxHash,
         timestamp: Timestamp,
     },
@@ -88,6 +96,7 @@ pub enum Event {
         timestamp: Timestamp,
     },
     TxpoolContent {
+        node: NodeKey,
         content: TxpoolContent,
         timestamp: Timestamp,
     },
@@ -150,11 +159,17 @@ pub async fn watch_transactions(
     node_config: NodeConfig,
     tx: Sender<Event>,
 ) -> Result<(), WatchError> {
-    let ws_provider = node_config.ws_provider().await?;
-    let mut stream = ws_provider.subscribe_pending_txs().await?;
+    let ws_providers = node_config.execution_ws_providers().await?;
+    let mut streams = Vec::new();
+    for (i, provider) in ws_providers.iter().enumerate() {
+        let stream = provider.subscribe_pending_txs().await?.map(move |v| (i, v));
+        streams.push(stream);
+    }
+    let mut stream = futures::stream::iter(streams).flatten();
 
-    while let Some(hash) = stream.next().await {
+    while let Some((node, hash)) = stream.next().await {
         let event = Event::NewTransaction {
+            node,
             hash,
             timestamp: get_current_timestamp(),
         };
@@ -171,7 +186,7 @@ pub async fn watch_transactions(
 }
 
 async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), WatchError> {
-    let exec_provider = node_config.execution_provider();
+    let exec_provider = node_config.execution_http_provider();
     let cons_provider = node_config.consensus_provider();
 
     let url = node_config
@@ -228,6 +243,7 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
 
         let content = exec_provider.txpool_content().await?;
         let event = Event::TxpoolContent {
+            node: 0,
             content,
             timestamp: get_current_timestamp(),
         };
