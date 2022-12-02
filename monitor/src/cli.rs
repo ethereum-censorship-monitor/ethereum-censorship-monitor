@@ -33,7 +33,8 @@ pub struct Config {
     pub log: String,
 
     pub execution_http_url: url::Url,
-    pub execution_ws_urls: Vec<url::Url>,
+    pub main_execution_ws_url: url::Url,
+    pub secondary_execution_ws_urls: Vec<url::Url>,
     pub consensus_http_url: url::Url,
 
     #[serde(default)]
@@ -52,6 +53,12 @@ impl Config {
             .merge(Env::prefixed("MONITOR_"))
             .extract()
             .wrap_err("error loading config")
+    }
+
+    pub fn execution_ws_urls(&self) -> Vec<url::Url> {
+        let mut urls = vec![self.main_execution_ws_url.clone()];
+        urls.extend(self.secondary_execution_ws_urls.clone());
+        urls
     }
 }
 

@@ -1,7 +1,8 @@
 log = "info,monitor=debug"
 
 execution_http_url = "http://1.geth.mainnet.ethnodes.brainbot.com:8545/"
-execution_ws_urls = ["ws://1.geth.mainnet.ethnodes.brainbot.com:8546/"]
+main_execution_ws_url = "ws://1.geth.mainnet.ethnodes.brainbot.com:8546/"
+secondary_execution_ws_urls = []
 consensus_http_url = "http://1.geth.mainnet.ethnodes.brainbot.com:5052/"
 
 db_enabled = true

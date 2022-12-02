@@ -25,7 +25,7 @@ impl NodeConfig {
     pub fn from(config: &Config) -> Self {
         NodeConfig {
             execution_http_url: config.execution_http_url.clone(),
-            execution_ws_urls: config.execution_ws_urls.clone(),
+            execution_ws_urls: config.execution_ws_urls(),
             consensus_http_url: config.consensus_http_url.clone(),
         }
     }
