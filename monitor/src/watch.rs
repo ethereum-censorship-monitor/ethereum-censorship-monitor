@@ -211,7 +211,8 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
                 }
                 let event = event.unwrap();
 
-                let beacon_block_without_root = cons_provider.fetch_beacon_block(event.block).await;
+                let beacon_block_without_root =
+                    cons_provider.fetch_beacon_block_by_root(event.block).await;
                 if let Err(e) = beacon_block_without_root {
                     es.close();
                     return Err(WatchError::from(e));

@@ -25,6 +25,13 @@ pub enum Commands {
     Run,
     /// Delete all data from the database
     TruncateDB,
+    /// Check if a transaction could have been included earlier than it was
+    Check {
+        txhash: String,
+        /// Number of blocks to check
+        #[arg(short, default_value_t = 1)]
+        n: usize,
+    },
 }
 
 #[derive(Deserialize, Debug, Clone)]

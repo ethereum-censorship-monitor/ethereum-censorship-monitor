@@ -1,4 +1,5 @@
 mod analyze;
+mod check_transaction;
 mod cli;
 mod consensus_api;
 mod db;
@@ -8,6 +9,8 @@ mod pool;
 mod state;
 mod types;
 mod watch;
+
+use core::str::FromStr;
 
 use clap::Parser;
 use color_eyre::{
@@ -33,6 +36,7 @@ async fn main() -> Result<()> {
     match cli.command {
         cli::Commands::Run => run(config).await,
         cli::Commands::TruncateDB => truncate_db(config).await,
+        cli::Commands::Check { txhash, n } => check(config, txhash, n).await,
     }
 }
 
@@ -128,5 +132,11 @@ async fn truncate_db(config: cli::Config) -> Result<()> {
     db::truncate(&pool)
         .await
         .wrap_err("failed to drop db tables")?;
+    Ok(())
+}
+
+async fn check(config: cli::Config, tx_hash: String, n: usize) -> Result<()> {
+    let hash = types::TxHash::from_str(tx_hash.as_str())?;
+    check_transaction::check_transaction(hash, &config, n).await?;
     Ok(())
 }

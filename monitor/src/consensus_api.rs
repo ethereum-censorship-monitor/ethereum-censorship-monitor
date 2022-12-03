@@ -33,13 +33,29 @@ impl ConsensusProvider {
         ConsensusProvider { http_url }
     }
 
-    pub async fn fetch_beacon_block(
+    pub async fn fetch_beacon_block_by_root(
         &self,
         root: H256,
     ) -> Result<BeaconBlockWithoutRoot<Transaction>, ConsensusAPIError> {
+        let path = format!("0x{}", hex::encode(root));
+        self.fetch_beacon_block_with_path(path).await
+    }
+
+    pub async fn fetch_beacon_block_by_slot(
+        &self,
+        slot: u64,
+    ) -> Result<BeaconBlockWithoutRoot<Transaction>, ConsensusAPIError> {
+        let path = slot.to_string();
+        self.fetch_beacon_block_with_path(path).await
+    }
+
+    async fn fetch_beacon_block_with_path(
+        &self,
+        path: String,
+    ) -> Result<BeaconBlockWithoutRoot<Transaction>, ConsensusAPIError> {
         let url = self
             .http_url
-            .join(format!("/eth/v2/beacon/blocks/0x{}", hex::encode(root)).as_str())
+            .join(format!("/eth/v2/beacon/blocks/{}", path).as_str())
             .unwrap();
 
         let r = reqwest::get(url)

@@ -30,7 +30,7 @@ enum InclusionCheckError {
 }
 
 #[derive(Debug, Error)]
-enum TransactionError {
+pub enum TransactionError {
     #[error("transaction is missing required field {name}")]
     MissingRequiredField { name: String },
     #[error("transaction has type {transaction_type} which is not supported")]
@@ -101,13 +101,16 @@ fn get_tip(transaction: &Transaction, base_fee: U256) -> Result<U256, Transactio
 
 /// Check if there is not enough space left in the block to include the
 /// transaction.
-fn check_not_enough_space(transaction: &Transaction, exec: &ExecutionPayload<Transaction>) -> bool {
+pub fn check_not_enough_space(
+    transaction: &Transaction,
+    exec: &ExecutionPayload<Transaction>,
+) -> bool {
     let unused_gas = exec.gas_limit - exec.gas_used;
     transaction.gas > U256::from(unused_gas.as_u64())
 }
 
 /// Check if the transaction doesn't pay a high enough base fee.
-fn check_base_fee_too_low(
+pub fn check_base_fee_too_low(
     transaction: &Transaction,
     exec: &ExecutionPayload<Transaction>,
 ) -> Result<bool, TransactionError> {
@@ -133,7 +136,7 @@ fn check_base_fee_too_low(
 }
 
 /// Check if the transaction doesn't pay a high enough tip.
-fn check_tip_too_low(
+pub fn check_tip_too_low(
     transaction: &Transaction,
     exec: &ExecutionPayload<Transaction>,
 ) -> Result<bool, TransactionError> {
@@ -142,7 +145,7 @@ fn check_tip_too_low(
 }
 
 /// Check if there is a mismatch between transaction and account nonce.
-async fn check_nonce_mismatch(
+pub async fn check_nonce_mismatch(
     transaction: &Transaction,
     beacon_block: &BeaconBlock<Transaction>,
     nonce_cache: &mut NonceCache,
