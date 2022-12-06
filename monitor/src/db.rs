@@ -1,4 +1,5 @@
 use hex::ToHex;
+use sqlx::types::chrono::NaiveDateTime;
 
 use crate::analyze::Analysis;
 
@@ -38,7 +39,7 @@ pub async fn insert_analysis_into_db(analysis: &Analysis, pool: &Pool) -> Result
 
     sqlx::query!(
         r#"
-        INSERT INTO beacon_block (
+        INSERT INTO data.beacon_block (
             root,
             slot,
             proposer_index,
@@ -69,34 +70,38 @@ pub async fn insert_analysis_into_db(analysis: &Analysis, pool: &Pool) -> Result
         let transaction = missing_transaction.transaction.as_ref().unwrap();
         let transaction_hash_str = encode_hex_prefixed(transaction.hash);
 
-        // TODO: store both first_seen and quorum_reached timestamp in db
-        let first_seen = missing_transaction.quorum_reached_timestamp(analysis.quorum);
-        if first_seen.is_none() {
+        let first_seen = missing_transaction.quorum_reached_timestamp(1);
+        let quorum_reached = missing_transaction.quorum_reached_timestamp(analysis.quorum);
+        if first_seen.is_none() || quorum_reached.is_none() {
             log::error!("transaction without quorum considered as missing");
             continue;
         }
         let first_seen = first_seen.unwrap();
+        let quorum_reached = quorum_reached.unwrap();
 
         let queries = [
             sqlx::query!(
                 r#"
-            INSERT INTO transaction (
+            INSERT INTO data.transaction (
                 hash,
                 sender,
-                first_seen
+                first_seen,
+                quorum_reached
             ) VALUES (
                 $1,
                 $2,
-                $3
+                $3,
+                $4
             ) ON CONFLICT DO NOTHING;
             "#,
                 transaction_hash_str,
                 encode_hex_prefixed(transaction.from),
-                first_seen as i64,
+                NaiveDateTime::from_timestamp(first_seen as i64, 0),
+                NaiveDateTime::from_timestamp(quorum_reached as i64, 0),
             ),
             sqlx::query!(
                 r#"
-            INSERT INTO miss (
+            INSERT INTO data.miss (
                 transaction_hash,
                 beacon_block_root
             ) VALUES (
