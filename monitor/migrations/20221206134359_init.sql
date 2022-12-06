@@ -1,4 +1,4 @@
-CREATE SCHEMA data;
+CREATE SCHEMA IF NOT EXISTS data;
 
 CREATE TABLE
   data.transaction (
