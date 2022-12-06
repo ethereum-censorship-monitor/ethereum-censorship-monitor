@@ -5,19 +5,25 @@ repos:
         name: cargo-check
         entry: cargo +nightly check --manifest-path=./monitor/Cargo.toml
         language: system
-        files: \.(rs)$
+        files: ^monitor/.*.rs$
         require_serial: true
         pass_filenames: false
       - id: cargo-fmt
         name: cargo-fmt
         entry: cargo +nightly fmt --manifest-path=./monitor/Cargo.toml --
         language: system
-        files: \.(rs)$
+        files: ^monitor/.*.rs$
         require_serial: true
       - id: clippy
         name: clippy
         entry: cargo clippy --manifest-path=./monitor/Cargo.toml -- --deny "warnings"
         language: system
-        files: \.(rs)$
+        files: ^monitor/.*.rs$
         require_serial: true
+        pass_filenames: false
+      - id: sqlx-prepare
+        name: sqlx-prepare
+        entry: bash -c 'cd monitor; cargo sqlx prepare'
+        language: system
+        files: ^monitor/migrations/.*\.sql$|^monitor/sqlx-data\.json$
         pass_filenames: false
