@@ -225,7 +225,7 @@ mod test {
             }
             assert_eq!(obs_tx.first_seen.len(), first_seen.len());
             for (i, t) in first_seen.iter().enumerate() {
-                assert_eq!(obs_tx.first_seen.get(&(i as u64)).unwrap(), t);
+                assert_eq!(obs_tx.first_seen.get(&i).unwrap(), t);
             }
             assert_eq!(obs_tx.disappeared, disappeared);
         }
