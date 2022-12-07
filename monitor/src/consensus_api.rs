@@ -113,7 +113,7 @@ impl ConsensusProvider {
     }
 
     pub async fn fetch_sync_status(&self) -> Result<ConsensusSyncStatus, ConsensusAPIError> {
-        let url = self.http_url.join("/eth/v1/node/syncing").unwrap();
+        let url = url_with_path(&self.http_url, "/eth/v1/node/syncing");
         let r = reqwest::get(url)
             .await
             .map_err(|e| ConsensusAPIError::ReqwestError {

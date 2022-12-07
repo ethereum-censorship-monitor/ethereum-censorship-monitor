@@ -215,8 +215,10 @@ pub struct ConsensusSyncStatus {
 /// because Url::join strips an existing path on the URL if the sub-path starts
 /// with a slash.
 pub fn url_with_path(url: &Url, path: &str) -> Url {
+    let relative_path = path.strip_prefix('/').unwrap_or(path);
+    let full_path = Path::new(url.path()).join(relative_path);
+
     let mut url = url.clone();
-    let full_path = Path::new(url.path()).join(path);
     url.set_path(full_path.to_str().unwrap());
     url
 }
