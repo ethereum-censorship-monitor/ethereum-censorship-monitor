@@ -1,6 +1,7 @@
 mod analyze;
 mod check_transaction;
 mod cli;
+mod compare_providers;
 mod consensus_api;
 mod db;
 mod head_history;
@@ -37,6 +38,7 @@ async fn main() -> Result<()> {
         cli::Commands::Run => run(config).await,
         cli::Commands::TruncateDB => truncate_db(config).await,
         cli::Commands::Check { txhash, n } => check(config, txhash, n).await,
+        cli::Commands::CompareProviders => compare_providers(config).await,
     }
 }
 
@@ -140,4 +142,8 @@ async fn check(config: cli::Config, tx_hash: String, n: usize) -> Result<()> {
     let hash = types::TxHash::from_str(tx_hash.as_str())?;
     check_transaction::check_transaction(hash, &config, n).await?;
     Ok(())
+}
+
+async fn compare_providers(config: cli::Config) -> Result<()> {
+    compare_providers::compare_providers(&config).await
 }

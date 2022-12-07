@@ -32,6 +32,8 @@ pub enum Commands {
         #[arg(short, default_value_t = 1)]
         n: usize,
     },
+    /// Compare the pending transaction streams sent by the different providers.
+    CompareProviders,
 }
 
 #[derive(Deserialize, Debug, Clone)]
