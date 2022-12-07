@@ -55,10 +55,11 @@ async fn run(config: cli::Config) -> Result<()> {
         .wrap_err("error connecting to Ethereum node")?;
     log::info!("node connection is up");
 
-    if node_config
-        .is_syncing()
-        .await
-        .wrap_err("error connecting to Ethereum node")?
+    if config.sync_check_enabled
+        && node_config
+            .is_syncing()
+            .await
+            .wrap_err("error connecting to Ethereum node")?
     {
         return Err::<(), Report>(eyre!("node is still syncing"));
     }

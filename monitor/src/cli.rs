@@ -44,6 +44,9 @@ pub struct Config {
     pub secondary_execution_ws_urls: Vec<url::Url>,
     pub consensus_http_url: url::Url,
 
+    #[serde(default = "default_sync_check_enabled")]
+    pub sync_check_enabled: bool,
+
     #[serde(default)]
     pub db_enabled: bool,
     #[serde(default)]
@@ -71,4 +74,8 @@ impl Config {
 
 fn default_log_config() -> String {
     String::from("info,monitor=debug")
+}
+
+fn default_sync_check_enabled() -> bool {
+    true
 }

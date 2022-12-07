@@ -5,5 +5,7 @@ main_execution_ws_url = "ws://1.geth.mainnet.ethnodes.brainbot.com:8546/"
 secondary_execution_ws_urls = []
 consensus_http_url = "http://1.geth.mainnet.ethnodes.brainbot.com:5052/"
 
+sync_check_enabled = true
+
 db_enabled = true
 db_connection = "postgres://postgres@localhost:5432/monitor"
