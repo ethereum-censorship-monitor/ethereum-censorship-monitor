@@ -4,7 +4,9 @@ use serde::Deserialize;
 use thiserror::Error;
 use url::Url;
 
-use crate::types::{BeaconBlockWithoutRoot, ConsensusSyncStatus, SignedMessage, Transaction, H256};
+use crate::types::{
+    url_with_path, BeaconBlockWithoutRoot, ConsensusSyncStatus, SignedMessage, Transaction, H256,
+};
 
 #[derive(Error, Debug)]
 pub enum ConsensusAPIError {
@@ -53,10 +55,10 @@ impl ConsensusProvider {
         &self,
         path: String,
     ) -> Result<BeaconBlockWithoutRoot<Transaction>, ConsensusAPIError> {
-        let url = self
-            .http_url
-            .join(format!("/eth/v2/beacon/blocks/{}", path).as_str())
-            .unwrap();
+        let url = url_with_path(
+            &self.http_url,
+            format!("/eth/v2/beacon/blocks/{}", path).as_str(),
+        );
 
         let r = reqwest::get(url)
             .await

@@ -10,7 +10,9 @@ use tokio::sync::mpsc::Sender;
 use crate::{
     cli::Config,
     consensus_api::{ConsensusAPIError, ConsensusProvider},
-    types::{BeaconBlock, NewBeaconHeadEvent, NodeKey, Timestamp, TxHash, TxpoolContent},
+    types::{
+        url_with_path, BeaconBlock, NewBeaconHeadEvent, NodeKey, Timestamp, TxHash, TxpoolContent,
+    },
 };
 
 /// NodeConfig stores the RPC and websocket URLs to an Ethereum node.
@@ -189,10 +191,8 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
     let exec_provider = node_config.execution_http_provider();
     let cons_provider = node_config.consensus_provider();
 
-    let url = node_config
-        .consensus_http_url
-        .join("/eth/v1/events?topics=head")
-        .unwrap();
+    let mut url = url_with_path(&node_config.consensus_http_url, "/eth/v1/events");
+    url.set_query(Some("topics=head"));
     let request = reqwest::Client::new().get(url);
     let mut es = reqwest_eventsource::EventSource::new(request).unwrap();
     while let Some(event) = es.next().await {

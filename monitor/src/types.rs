@@ -1,10 +1,11 @@
-use std::fmt;
+use std::{fmt, path::Path};
 
 use ethers::abi::ethereum_types::FromDecStrErr;
 pub use ethers::types::{
     Address, Block, Bytes, Transaction, TxHash, TxpoolContent, H256, U256, U64,
 };
 use serde::Deserialize;
+use url::Url;
 pub type Timestamp = u64;
 
 pub const GENESIS_TIME: Timestamp = 1606824023;
@@ -208,4 +209,14 @@ pub struct ConsensusSyncStatus {
     pub sync_distance: U256,
     pub is_syncing: bool,
     pub is_optimistic: bool,
+}
+
+/// Join a url with optional path with an sub-path. This function is needed
+/// because Url::join strips an existing path on the URL if the sub-path starts
+/// with a slash.
+pub fn url_with_path(url: &Url, path: &str) -> Url {
+    let mut url = url.clone();
+    let full_path = Path::new(url.path()).join(path);
+    url.set_path(full_path.to_str().unwrap());
+    url
 }
