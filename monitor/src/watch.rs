@@ -61,7 +61,7 @@ impl NodeConfig {
         p.get_block_number().await?;
 
         let p = self.consensus_provider();
-        p.fetch_sync_status().await?;
+        p.fetch_beacon_block_by_slot(5299000).await?; // just a random slot
 
         for p in self.execution_ws_providers().await? {
             let s = p.subscribe_pending_txs().await?;
