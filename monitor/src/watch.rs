@@ -5,7 +5,10 @@ use ethers::{
     providers::{Http, Middleware, Provider, Ws},
 };
 use thiserror::Error;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{
+    mpsc,
+    mpsc::{Receiver, Sender},
+};
 
 use crate::{
     cli::Config,
@@ -162,29 +165,41 @@ pub async fn watch_transactions(
     tx: Sender<Event>,
 ) -> Result<(), WatchError> {
     let ws_providers = node_config.execution_ws_providers().await?;
-    let mut streams = Vec::new();
+
+    let (error_tx, mut error_rx): (Sender<WatchError>, Receiver<WatchError>) =
+        mpsc::channel(ws_providers.len());
+
+    let mut streams_with_channels = Vec::new();
     for (i, provider) in ws_providers.iter().enumerate() {
         let stream = provider.subscribe_pending_txs().await?.map(move |v| (i, v));
-        streams.push(stream);
+        streams_with_channels.push((stream, tx.clone(), error_tx.clone()));
     }
-    let mut stream = futures::stream::iter(streams).flatten();
 
-    while let Some((node, hash)) = stream.next().await {
-        let event = Event::NewTransaction {
-            node,
-            hash,
-            timestamp: get_current_timestamp(),
-        };
+    futures::stream::iter(streams_with_channels)
+        .for_each_concurrent(None, |(mut stream, tx, error_tx)| async move {
+            while let Some((node, hash)) = stream.next().await {
+                let event = Event::NewTransaction {
+                    node,
+                    hash,
+                    timestamp: get_current_timestamp(),
+                };
 
-        // send event to channel, but only if it's less than 50% full, drop it
-        // otherwise. Block and pool observations are more important, so we make
-        // sure there's room for them.
-        let relative_capacity = tx.capacity() as f32 / tx.max_capacity() as f32;
-        if relative_capacity > 0.5 {
-            tx.send(event).await?;
-        }
-    }
-    Err(WatchError::StreamEnded)
+                // send event to channel, but only if it's less than 50% full, drop it
+                // otherwise. Block and pool observations are more important, so we make sure
+                // there's room for them.
+                let relative_capacity = tx.capacity() as f32 / tx.max_capacity() as f32;
+                if relative_capacity > 0.5 {
+                    if let Err(e) = tx.send(event).await {
+                        error_tx.send(WatchError::from(e)).await.ok();
+                        return;
+                    }
+                }
+            }
+            error_tx.send(WatchError::StreamEnded).await.ok();
+        })
+        .await;
+
+    Err(error_rx.recv().await.unwrap_or(WatchError::StreamEnded))
 }
 
 async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), WatchError> {

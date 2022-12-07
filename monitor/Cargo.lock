@@ -2222,6 +2222,7 @@ dependencies = [
  "figment",
  "futures",
  "hex",
+ "itertools",
  "log",
  "rand",
  "reqwest",
