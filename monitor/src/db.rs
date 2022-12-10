@@ -1,5 +1,4 @@
 use hex::ToHex;
-use sqlx::types::chrono::NaiveDateTime;
 
 use crate::analyze::Analysis;
 
@@ -96,8 +95,8 @@ pub async fn insert_analysis_into_db(analysis: &Analysis, pool: &Pool) -> Result
             "#,
                 transaction_hash_str,
                 encode_hex_prefixed(transaction.from),
-                NaiveDateTime::from_timestamp(first_seen as i64, 0),
-                NaiveDateTime::from_timestamp(quorum_reached as i64, 0),
+                first_seen.naive_utc(),
+                quorum_reached.naive_utc(),
             ),
             sqlx::query!(
                 r#"

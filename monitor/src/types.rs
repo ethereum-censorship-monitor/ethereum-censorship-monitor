@@ -1,14 +1,14 @@
 use std::{fmt, path::Path};
 
+use chrono::{DateTime, Duration, TimeZone, Utc};
 use ethers::abi::ethereum_types::FromDecStrErr;
 pub use ethers::types::{
     Address, Block, Bytes, Transaction, TxHash, TxpoolContent, H256, U256, U64,
 };
 use serde::Deserialize;
 use url::Url;
-pub type Timestamp = u64;
 
-pub const GENESIS_TIME: Timestamp = 1606824023;
+pub const GENESIS_TIME_SECONDS: i64 = 1606824023;
 
 pub type NodeKey = usize;
 
@@ -108,8 +108,9 @@ impl<T> BeaconBlock<T> {
         }
     }
 
-    pub fn proposal_time(&self) -> Timestamp {
-        GENESIS_TIME + self.slot.as_u64() * 12
+    pub fn proposal_time(&self) -> DateTime<Utc> {
+        Utc.timestamp_opt(GENESIS_TIME_SECONDS, 0).unwrap()
+            + Duration::seconds((self.slot.as_u64() * 12) as i64)
     }
 }
 

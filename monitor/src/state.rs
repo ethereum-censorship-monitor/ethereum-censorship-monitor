@@ -1,3 +1,4 @@
+use chrono::{DateTime, Duration, Utc};
 use ethers::types::Transaction;
 
 use crate::{
@@ -5,11 +6,11 @@ use crate::{
     head_history::HeadHistory,
     nonce_cache::NonceCache,
     pool::Pool,
-    types::{BeaconBlock, NodeKey, Timestamp, TxHash, TxpoolContent},
+    types::{BeaconBlock, NodeKey, TxHash, TxpoolContent},
     watch::{Event, NodeConfig},
 };
 
-const PRUNE_DELAY: u64 = 16 * 12;
+const PRUNE_DELAY_SECONDS: i64 = 16 * 12;
 
 pub struct State {
     pool: Pool,
@@ -69,7 +70,7 @@ impl State {
         &mut self,
         node: NodeKey,
         hash: TxHash,
-        t: Timestamp,
+        t: DateTime<Utc>,
     ) -> Vec<Analysis> {
         self.pool.observe_transaction(node, t, hash);
         Vec::new()
@@ -79,10 +80,10 @@ impl State {
         &mut self,
         node: NodeKey,
         content: TxpoolContent,
-        t: Timestamp,
+        t: DateTime<Utc>,
     ) -> Vec<Analysis> {
         self.pool.observe_pool(node, t, content);
-        self.pool.prune(t.saturating_sub(PRUNE_DELAY));
+        self.pool.prune(t - Duration::seconds(PRUNE_DELAY_SECONDS));
 
         let beacon_blocks = self.analysis_queue.clone();
         self.analysis_queue.clear();
@@ -100,10 +101,11 @@ impl State {
     async fn process_new_head_event(
         &mut self,
         beacon_block: BeaconBlock<Transaction>,
-        t: Timestamp,
+        t: DateTime<Utc>,
     ) -> Vec<Analysis> {
         self.head_history.observe(t, beacon_block.clone());
-        self.head_history.prune(t.saturating_sub(PRUNE_DELAY));
+        self.head_history
+            .prune(t - Duration::seconds(PRUNE_DELAY_SECONDS));
         self.analysis_queue.push(beacon_block);
         Vec::new()
     }
@@ -121,7 +123,7 @@ impl State {
                 log::info!(
                     "skipping analysis of {} as head block at proposal time {} is unknown",
                     beacon_block,
-                    proposal_time
+                    proposal_time,
                 );
                 return None;
             }

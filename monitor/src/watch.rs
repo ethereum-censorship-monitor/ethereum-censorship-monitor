@@ -1,5 +1,4 @@
-use std::time::SystemTime;
-
+use chrono::{DateTime, Utc};
 use ethers::{
     prelude::*,
     providers::{Http, Middleware, Provider, Ws},
@@ -13,9 +12,7 @@ use tokio::sync::{
 use crate::{
     cli::Config,
     consensus_api::{ConsensusAPIError, ConsensusProvider},
-    types::{
-        url_with_path, BeaconBlock, NewBeaconHeadEvent, NodeKey, Timestamp, TxHash, TxpoolContent,
-    },
+    types::{url_with_path, BeaconBlock, NewBeaconHeadEvent, NodeKey, TxHash, TxpoolContent},
 };
 
 /// NodeConfig stores the RPC and websocket URLs to an Ethereum node.
@@ -94,16 +91,16 @@ pub enum Event {
     NewTransaction {
         node: NodeKey,
         hash: TxHash,
-        timestamp: Timestamp,
+        timestamp: DateTime<Utc>,
     },
     NewHead {
         beacon_block: BeaconBlock<Transaction>,
-        timestamp: Timestamp,
+        timestamp: DateTime<Utc>,
     },
     TxpoolContent {
         node: NodeKey,
         content: TxpoolContent,
-        timestamp: Timestamp,
+        timestamp: DateTime<Utc>,
     },
 }
 
@@ -126,15 +123,6 @@ pub enum WatchError {
     },
     #[error("error from consensus client")]
     ConsensusAPI(#[from] ConsensusAPIError),
-}
-
-/// Get the current timestamp, i.e. number of seconds since unix epoch.
-fn get_current_timestamp() -> Timestamp {
-    // unwrapping is fine since now will always be later than the unix epoch
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
 }
 
 /// Watch for relevant events. The events are sent to the given tx channel. The
@@ -181,7 +169,7 @@ pub async fn watch_transactions(
                 let event = Event::NewTransaction {
                     node,
                     hash,
-                    timestamp: get_current_timestamp(),
+                    timestamp: Utc::now(),
                 };
 
                 // send event to channel, but only if it's less than 50% full, drop it
@@ -211,7 +199,7 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
     let request = reqwest::Client::new().get(url);
     let mut es = reqwest_eventsource::EventSource::new(request).unwrap();
     while let Some(event) = es.next().await {
-        let t = get_current_timestamp();
+        let t = Utc::now();
         match event {
             Ok(reqwest_eventsource::Event::Open) => {}
             Ok(reqwest_eventsource::Event::Message(message)) => {
@@ -261,7 +249,7 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
         let event = Event::TxpoolContent {
             node: 0,
             content,
-            timestamp: get_current_timestamp(),
+            timestamp: Utc::now(),
         };
         tx.send(event).await?;
     }

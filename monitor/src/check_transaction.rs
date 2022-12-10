@@ -14,7 +14,7 @@ use crate::{
     cli::Config,
     consensus_api::ConsensusProvider,
     nonce_cache::NonceCache,
-    types::{BeaconBlock, ExecutionPayload, TxHash, GENESIS_TIME, H256},
+    types::{BeaconBlock, ExecutionPayload, TxHash, GENESIS_TIME_SECONDS, H256},
     watch::NodeConfig,
 };
 
@@ -67,7 +67,7 @@ pub async fn check_transaction_in_block(
         .get_block(block_number)
         .await?
         .ok_or(eyre!("block not found"))?;
-    let slot = ((block.timestamp - GENESIS_TIME) / 12).as_u64();
+    let slot = (block.timestamp.as_u64() - GENESIS_TIME_SECONDS as u64) / 12;
     let beacon_block_without_root = consensus_provider.fetch_beacon_block_by_slot(slot).await?;
     let beacon_block = BeaconBlock::new(beacon_block_without_root, H256::zero());
     let exec = &beacon_block.body.execution_payload;

@@ -1,13 +1,14 @@
 use std::collections::VecDeque;
 
+use chrono::{DateTime, Duration, Utc};
 use ethers::types::Transaction;
 
-use crate::types::{BeaconBlock, Timestamp};
+use crate::types::BeaconBlock;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObservedHead {
     pub head: BeaconBlock<Transaction>,
-    pub timestamp: Timestamp,
+    pub timestamp: DateTime<Utc>,
 }
 
 #[derive(Debug)]
@@ -20,14 +21,21 @@ impl HeadHistory {
     }
 
     /// Insert a new block into the history observed at the given timestamp.
-    pub fn observe(&mut self, timestamp: Timestamp, head: BeaconBlock<Transaction>) {
+    pub fn observe(&mut self, timestamp: DateTime<Utc>, head: BeaconBlock<Transaction>) {
         let i = self.0.partition_point(|oh| oh.timestamp <= timestamp);
+        let dt = timestamp - head.proposal_time();
+        if dt < Duration::zero() {
+            log::warn!(
+                "received block {} {:2}s before proposal time",
+                head,
+                -dt.num_milliseconds() as f64 / 1000.
+            );
+        }
         log::debug!(
-            "inserting block {} observed at time {} ({}s after proposal time) into head history \
-             at index {} (current length {})",
+            "inserting block {} observed {:2}s after proposal time into head history at index {} \
+             (current length {})",
             head,
-            timestamp,
-            timestamp - head.proposal_time(),
+            dt.num_milliseconds() as f64 / 1000.,
             i,
             self.0.len(),
         );
@@ -36,7 +44,7 @@ impl HeadHistory {
 
     /// Delete blocks that do not affect the history at or after cutoff.
     #[allow(dead_code)]
-    pub fn prune(&mut self, cutoff: Timestamp) {
+    pub fn prune(&mut self, cutoff: DateTime<Utc>) {
         let mut num_pruned = 0;
         while let Some(oh) = self.0.get(1) {
             if oh.timestamp <= cutoff {
@@ -47,7 +55,7 @@ impl HeadHistory {
                     "pruned {} of {} blocks before time {} in head history",
                     num_pruned,
                     self.0.len() + num_pruned,
-                    cutoff
+                    cutoff,
                 );
                 break;
             }
@@ -55,7 +63,7 @@ impl HeadHistory {
     }
 
     /// Get the block we considered the head at the given time, if any.
-    pub fn at(&self, timestamp: Timestamp) -> Option<ObservedHead> {
+    pub fn at(&self, timestamp: DateTime<Utc>) -> Option<ObservedHead> {
         // i is the index of the first block after t. We're interested in the one right
         // before
         let i = self.0.partition_point(|oh| oh.timestamp <= timestamp);
@@ -68,6 +76,8 @@ impl HeadHistory {
 
 #[cfg(test)]
 mod test {
+    use chrono::{TimeZone, Utc};
+
     use super::*;
     use crate::types::{H256, U64};
 
@@ -82,46 +92,52 @@ mod test {
     fn test() {
         let mut h = HeadHistory::new();
 
-        assert_eq!(h.at(0), None);
+        let t0 = Utc.timestamp_opt(0, 0).unwrap();
+        let t1 = Utc.timestamp_opt(10, 0).unwrap();
+        let t2 = Utc.timestamp_opt(20, 0).unwrap();
+        let t3 = Utc.timestamp_opt(30, 0).unwrap();
+        let one_sec = Duration::seconds(1);
 
-        let b0 = new_block(10);
-        let b1 = new_block(20);
-        let b2 = new_block(30);
+        assert_eq!(h.at(t0), None);
+
+        let b0 = new_block(0);
+        let b1 = new_block(1);
+        let b2 = new_block(2);
 
         let o0 = ObservedHead {
             head: b0,
-            timestamp: 10,
+            timestamp: t1,
         };
         let o1 = ObservedHead {
             head: b2,
-            timestamp: 20,
+            timestamp: t2,
         };
         let o2 = ObservedHead {
             head: b1,
-            timestamp: 30,
+            timestamp: t3,
         };
 
         for o in vec![&o0, &o1, &o2] {
             h.observe(o.timestamp, o.head.clone());
         }
 
-        assert!(h.at(0).is_none());
-        assert!(h.at(9).is_none());
-        assert_eq!(h.at(10).unwrap(), o0);
-        assert_eq!(h.at(19).unwrap(), o0);
-        assert_eq!(h.at(20).unwrap(), o1);
-        assert_eq!(h.at(29).unwrap(), o1);
-        assert_eq!(h.at(30).unwrap(), o2);
-        assert_eq!(h.at(300).unwrap(), o2);
+        assert!(h.at(t0).is_none());
+        assert!(h.at(t0 - one_sec).is_none());
+        assert_eq!(h.at(t1).unwrap(), o0);
+        assert_eq!(h.at(t2 - one_sec).unwrap(), o0);
+        assert_eq!(h.at(t2).unwrap(), o1);
+        assert_eq!(h.at(t3 - one_sec).unwrap(), o1);
+        assert_eq!(h.at(t3).unwrap(), o2);
+        assert_eq!(h.at(t3 + one_sec).unwrap(), o2);
 
-        h.prune(29);
+        h.prune(t3 - one_sec);
 
-        assert!(h.at(0).is_none());
-        assert!(h.at(9).is_none());
-        assert!(h.at(19).is_none());
-        assert_eq!(h.at(20).unwrap(), o1);
-        assert_eq!(h.at(29).unwrap(), o1);
-        assert_eq!(h.at(30).unwrap(), o2);
-        assert_eq!(h.at(300).unwrap(), o2);
+        assert!(h.at(t0).is_none());
+        assert!(h.at(t1 - one_sec).is_none());
+        assert!(h.at(t2 - one_sec).is_none());
+        assert_eq!(h.at(t2).unwrap(), o1);
+        assert_eq!(h.at(t3 - one_sec).unwrap(), o1);
+        assert_eq!(h.at(t3).unwrap(), o2);
+        assert_eq!(h.at(t3 + one_sec).unwrap(), o2);
     }
 }

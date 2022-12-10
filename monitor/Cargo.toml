@@ -26,3 +26,4 @@ color-eyre = "0.6.2"
 eyre = "0.6.8"
 sqlx = { version = "0.6.2", features = [ "runtime-tokio-native-tls" , "postgres", "chrono", "offline"] }
 itertools = "0.10.5"
+chrono = "0.4.23"

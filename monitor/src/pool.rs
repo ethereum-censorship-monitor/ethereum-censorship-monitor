@@ -1,8 +1,9 @@
 use std::{cmp::min, collections::HashMap};
 
+use chrono::{DateTime, Utc};
 use ethers::types::TxpoolContent;
 
-use crate::types::{NodeKey, Timestamp, Transaction, TxHash};
+use crate::types::{NodeKey, Transaction, TxHash};
 
 /// ObservedTransaction stores a transaction hash and optionally a transaction
 /// body along with information about its observation history. For each node it
@@ -13,8 +14,8 @@ use crate::types::{NodeKey, Timestamp, Transaction, TxHash};
 pub struct ObservedTransaction {
     pub hash: TxHash,
     pub transaction: Option<Transaction>,
-    pub first_seen: HashMap<NodeKey, Timestamp>,
-    pub disappeared: Option<Timestamp>,
+    pub first_seen: HashMap<NodeKey, DateTime<Utc>>,
+    pub disappeared: Option<DateTime<Utc>>,
 }
 
 impl ObservedTransaction {
@@ -30,14 +31,14 @@ impl ObservedTransaction {
 
     /// Set the first seen time at the given node. If a timestamp has already
     /// been recorded for the node, keep the earlier one.
-    pub fn observe(&mut self, node_key: NodeKey, timestamp: Timestamp) {
+    pub fn observe(&mut self, node_key: NodeKey, timestamp: DateTime<Utc>) {
         let t = self.first_seen.entry(node_key).or_insert(timestamp);
         *t = min(*t, timestamp);
     }
 
     /// Set the disappeared timestamp. If a timestamp has already been recorded,
     /// keep the earlier one.
-    pub fn disappear_at(&mut self, timestamp: Timestamp) {
+    pub fn disappear_at(&mut self, timestamp: DateTime<Utc>) {
         let t = self.disappeared.get_or_insert(timestamp);
         *t = min(*t, timestamp);
     }
@@ -50,7 +51,7 @@ impl ObservedTransaction {
 
     /// Count the number of nodes that have seen the transactions at or before
     /// the given timestamps.
-    pub fn num_nodes_seen(&self, timestamp: Timestamp) -> usize {
+    pub fn num_nodes_seen(&self, timestamp: DateTime<Utc>) -> usize {
         self.first_seen
             .values()
             .filter(|&&t| t <= timestamp)
@@ -59,8 +60,8 @@ impl ObservedTransaction {
 
     /// Return the earliest timestamp at which a given number of nodes have seen
     /// the transaction.
-    pub fn quorum_reached_timestamp(&self, quorum: usize) -> Option<Timestamp> {
-        let mut timestamps: Vec<&Timestamp> = self.first_seen.values().collect();
+    pub fn quorum_reached_timestamp(&self, quorum: usize) -> Option<DateTime<Utc>> {
+        let mut timestamps: Vec<&DateTime<Utc>> = self.first_seen.values().collect();
         if timestamps.len() < quorum {
             return None;
         }
@@ -70,7 +71,7 @@ impl ObservedTransaction {
 
     /// Check if the transaction has disappeared at or before the given
     /// timestamp.
-    pub fn has_disappeared_before(&self, timestamp: Timestamp) -> bool {
+    pub fn has_disappeared_before(&self, timestamp: DateTime<Utc>) -> bool {
         self.disappeared.map_or(false, |t| timestamp >= t)
     }
 }
@@ -87,7 +88,7 @@ impl Pool {
 
     /// Get the transactions that have been observed at least once at or before
     /// the given timestamp and have not disappeared yet.
-    pub fn content_at(&self, timestamp: Timestamp) -> HashMap<TxHash, ObservedTransaction> {
+    pub fn content_at(&self, timestamp: DateTime<Utc>) -> HashMap<TxHash, ObservedTransaction> {
         self.0
             .values()
             .filter(|tx| tx.num_nodes_seen(timestamp) >= 1 && !tx.has_disappeared_before(timestamp))
@@ -97,7 +98,12 @@ impl Pool {
 
     /// Insert a transaction into the pool observed on the given node at the
     /// given time.
-    pub fn observe_transaction(&mut self, node_key: NodeKey, timestamp: Timestamp, hash: TxHash) {
+    pub fn observe_transaction(
+        &mut self,
+        node_key: NodeKey,
+        timestamp: DateTime<Utc>,
+        hash: TxHash,
+    ) {
         self.0
             .entry(hash)
             .or_insert_with(|| ObservedTransaction::new(hash))
@@ -110,7 +116,7 @@ impl Pool {
     pub fn observe_pool(
         &mut self,
         node_key: NodeKey,
-        timestamp: Timestamp,
+        timestamp: DateTime<Utc>,
         content: TxpoolContent,
     ) {
         let txs: HashMap<TxHash, &Transaction> = content
@@ -169,7 +175,7 @@ impl Pool {
     /// Remove transactions that have already disappeared at the given
     /// timestamp.
     #[allow(dead_code)]
-    pub fn prune(&mut self, cutoff: Timestamp) {
+    pub fn prune(&mut self, cutoff: DateTime<Utc>) {
         let len_before = self.0.len();
         self.0
             .retain(|_, obs_tx| !obs_tx.has_disappeared_before(cutoff));
@@ -187,12 +193,17 @@ impl Pool {
 mod test {
     use std::collections::BTreeMap;
 
+    use chrono::TimeZone;
     use ethers::types::Address;
 
     use super::*;
 
     const H1: TxHash = TxHash::repeat_byte(1);
     const H2: TxHash = TxHash::repeat_byte(2);
+
+    fn t(s: i64) -> DateTime<Utc> {
+        Utc.timestamp_opt(s, 0).unwrap()
+    }
 
     fn make_pool(hashes: Vec<TxHash>) -> TxpoolContent {
         let queued = BTreeMap::new();
@@ -212,7 +223,7 @@ mod test {
 
     fn assert_content(
         c: HashMap<TxHash, ObservedTransaction>,
-        v: Vec<(TxHash, bool, Vec<Timestamp>, Option<Timestamp>)>,
+        v: Vec<(TxHash, bool, Vec<DateTime<Utc>>, Option<DateTime<Utc>>)>,
     ) {
         assert_eq!(c.len(), v.len());
         for (h, has_body, first_seen, disappeared) in v {
@@ -244,57 +255,57 @@ mod test {
     fn test_tx_observe() {
         let mut obs_tx = ObservedTransaction::new(H1);
         assert_eq!(obs_tx.first_seen.len(), 0);
-        assert_eq!(obs_tx.num_nodes_seen(0), 0);
+        assert_eq!(obs_tx.num_nodes_seen(t(0)), 0);
 
-        obs_tx.observe(0, 20);
+        obs_tx.observe(0, t(20));
         assert_eq!(obs_tx.first_seen.len(), 1);
-        assert_eq!(*obs_tx.first_seen.get(&0).unwrap(), 20);
-        assert_eq!(obs_tx.num_nodes_seen(19), 0);
-        assert_eq!(obs_tx.num_nodes_seen(20), 1);
+        assert_eq!(*obs_tx.first_seen.get(&0).unwrap(), t(20));
+        assert_eq!(obs_tx.num_nodes_seen(t(19)), 0);
+        assert_eq!(obs_tx.num_nodes_seen(t(20)), 1);
 
-        obs_tx.observe(0, 25);
+        obs_tx.observe(0, t(25));
         assert_eq!(obs_tx.first_seen.len(), 1);
-        assert_eq!(*obs_tx.first_seen.get(&0).unwrap(), 20);
+        assert_eq!(*obs_tx.first_seen.get(&0).unwrap(), t(20));
 
-        obs_tx.observe(0, 15);
+        obs_tx.observe(0, t(15));
         assert_eq!(obs_tx.first_seen.len(), 1);
-        assert_eq!(*obs_tx.first_seen.get(&0).unwrap(), 15);
-        assert_eq!(obs_tx.num_nodes_seen(14), 0);
-        assert_eq!(obs_tx.num_nodes_seen(15), 1);
+        assert_eq!(*obs_tx.first_seen.get(&0).unwrap(), t(15));
+        assert_eq!(obs_tx.num_nodes_seen(t(14)), 0);
+        assert_eq!(obs_tx.num_nodes_seen(t(15)), 1);
 
-        obs_tx.observe(1, 20);
+        obs_tx.observe(1, t(20));
         assert_eq!(obs_tx.first_seen.len(), 2);
-        assert_eq!(*obs_tx.first_seen.get(&0).unwrap(), 15);
-        assert_eq!(*obs_tx.first_seen.get(&1).unwrap(), 20);
-        assert_eq!(obs_tx.num_nodes_seen(19), 1);
-        assert_eq!(obs_tx.num_nodes_seen(20), 2);
+        assert_eq!(*obs_tx.first_seen.get(&0).unwrap(), t(15));
+        assert_eq!(*obs_tx.first_seen.get(&1).unwrap(), t(20));
+        assert_eq!(obs_tx.num_nodes_seen(t(19)), 1);
+        assert_eq!(obs_tx.num_nodes_seen(t(20)), 2);
     }
 
     #[test]
     fn test_tx_disappear() {
         let mut obs_tx = ObservedTransaction::new(H1);
         assert!(obs_tx.disappeared.is_none());
-        assert!(!obs_tx.has_disappeared_before(100));
+        assert!(!obs_tx.has_disappeared_before(t(100)));
 
-        obs_tx.disappear_at(20);
-        assert_eq!(obs_tx.disappeared, Some(20));
-        assert!(!obs_tx.has_disappeared_before(19));
-        assert!(obs_tx.has_disappeared_before(20));
+        obs_tx.disappear_at(t(20));
+        assert_eq!(obs_tx.disappeared, Some(t(20)));
+        assert!(!obs_tx.has_disappeared_before(t(19)));
+        assert!(obs_tx.has_disappeared_before(t(20)));
 
-        obs_tx.disappear_at(25);
-        assert_eq!(obs_tx.disappeared, Some(20));
+        obs_tx.disappear_at(t(25));
+        assert_eq!(obs_tx.disappeared, Some(t(20)));
 
-        obs_tx.disappear_at(15);
-        assert_eq!(obs_tx.disappeared, Some(15));
-        assert!(!obs_tx.has_disappeared_before(14));
-        assert!(obs_tx.has_disappeared_before(15));
+        obs_tx.disappear_at(t(15));
+        assert_eq!(obs_tx.disappeared, Some(t(15)));
+        assert!(!obs_tx.has_disappeared_before(t(14)));
+        assert!(obs_tx.has_disappeared_before(t(15)));
     }
 
     #[test]
     fn test_tx_clear() {
         let mut obs_tx = ObservedTransaction::new(H1);
-        obs_tx.observe(0, 10);
-        obs_tx.disappear_at(20);
+        obs_tx.observe(0, t(10));
+        obs_tx.disappear_at(t(20));
         obs_tx.clear_observations();
         assert!(obs_tx.first_seen.is_empty());
         assert!(obs_tx.disappeared.is_none());
@@ -303,60 +314,67 @@ mod test {
     #[test]
     fn test_observe_pool() {
         let mut p = Pool::new();
-        p.observe_pool(0, 10, make_pool(vec![H1, H2]));
-        p.observe_pool(0, 20, make_pool(vec![H1]));
+        p.observe_pool(0, t(10), make_pool(vec![H1, H2]));
+        p.observe_pool(0, t(20), make_pool(vec![H1]));
 
-        assert_content(p.content_at(9), vec![].into_iter().collect());
+        assert_content(p.content_at(t(9)), vec![].into_iter().collect());
         assert_content(
-            p.content_at(10),
-            vec![(H1, true, vec![10], None), (H2, true, vec![10], Some(20))]
-                .into_iter()
-                .collect(),
+            p.content_at(t(10)),
+            vec![
+                (H1, true, vec![t(10)], None),
+                (H2, true, vec![t(10)], Some(t(20))),
+            ]
+            .into_iter()
+            .collect(),
         );
         assert_content(
-            p.content_at(20),
-            vec![(H1, true, vec![10], None)].into_iter().collect(),
+            p.content_at(t(20)),
+            vec![(H1, true, vec![t(10)], None)].into_iter().collect(),
         );
     }
 
     #[test]
     fn test_observe_transaction() {
         let mut p = Pool::new();
-        p.observe_transaction(0, 10, H1);
-        p.observe_transaction(1, 11, H1);
+        p.observe_transaction(0, t(10), H1);
+        p.observe_transaction(1, t(11), H1);
         assert_content(
-            p.content_at(10),
-            vec![(H1, false, vec![10, 11], None)].into_iter().collect(),
+            p.content_at(t(10)),
+            vec![(H1, false, vec![t(10), t(11)], None)]
+                .into_iter()
+                .collect(),
         );
     }
 
     #[test]
     fn test_backfill() {
         let mut p = Pool::new();
-        p.observe_transaction(0, 10, H1);
-        p.observe_pool(0, 20, make_pool(vec![H1]));
+        p.observe_transaction(0, t(10), H1);
+        p.observe_pool(0, t(20), make_pool(vec![H1]));
         assert_content(
-            p.content_at(10),
-            vec![(H1, true, vec![10], None)].into_iter().collect(),
+            p.content_at(t(10)),
+            vec![(H1, true, vec![t(10)], None)].into_iter().collect(),
         );
     }
 
     #[test]
     fn test_prune() {
         let mut p = Pool::new();
-        p.observe_pool(0, 10, make_pool(vec![H1, H2]));
-        p.observe_pool(0, 20, make_pool(vec![H1]));
-        p.observe_pool(0, 30, make_pool(vec![]));
-        assert_eq!(p.content_at(10).len(), 2);
+        p.observe_pool(0, t(10), make_pool(vec![H1, H2]));
+        p.observe_pool(0, t(20), make_pool(vec![H1]));
+        p.observe_pool(0, t(30), make_pool(vec![]));
+        assert_eq!(p.content_at(t(10)).len(), 2);
 
-        p.prune(19);
-        assert_eq!(p.content_at(10).len(), 2);
+        p.prune(t(19));
+        assert_eq!(p.content_at(t(10)).len(), 2);
 
-        p.prune(20);
-        assert_eq!(p.content_at(10).len(), 1);
+        p.prune(t(20));
+        assert_eq!(p.content_at(t(10)).len(), 1);
         assert_content(
-            p.content_at(10),
-            vec![(H1, true, vec![10], Some(30))].into_iter().collect(),
+            p.content_at(t(10)),
+            vec![(H1, true, vec![t(10)], Some(t(30)))]
+                .into_iter()
+                .collect(),
         );
     }
 }
