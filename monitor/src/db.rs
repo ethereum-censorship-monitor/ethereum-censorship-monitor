@@ -43,13 +43,15 @@ pub async fn insert_analysis_into_db(analysis: &Analysis, pool: &Pool) -> Result
             slot,
             proposer_index,
             execution_block_hash,
-            execution_block_number
+            execution_block_number,
+            proposal_time
         ) VALUES (
             $1,
             $2,
             $3,
             $4,
-            $5
+            $5,
+            $6
         ) ON CONFLICT DO NOTHING;
         "#,
         beacon_root_str,
@@ -57,6 +59,7 @@ pub async fn insert_analysis_into_db(analysis: &Analysis, pool: &Pool) -> Result
         block.proposer_index.as_u64() as i64,
         encode_hex_prefixed(exec.block_hash),
         exec.block_number.as_u64() as i64,
+        block.proposal_time().naive_utc(),
     )
     .execute(&mut tx)
     .await?;
@@ -102,14 +105,17 @@ pub async fn insert_analysis_into_db(analysis: &Analysis, pool: &Pool) -> Result
                 r#"
             INSERT INTO data.miss (
                 transaction_hash,
-                beacon_block_root
+                beacon_block_root,
+                proposal_time
             ) VALUES (
                 $1,
-                $2
+                $2,
+                $3
             ) ON CONFLICT DO NOTHING;
             "#,
                 transaction_hash_str,
                 beacon_root_str,
+                analysis.beacon_block.proposal_time().naive_utc(),
             ),
         ];
         for query in queries {
