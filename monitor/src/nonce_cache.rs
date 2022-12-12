@@ -6,7 +6,10 @@ use ethers::{
 };
 use thiserror::Error;
 
-use crate::types::{Address, BeaconBlock, H256};
+use crate::{
+    metrics,
+    types::{Address, BeaconBlock, H256},
+};
 
 pub struct NonceCache {
     beacon_block: BeaconBlock<Transaction>,
@@ -24,11 +27,13 @@ pub enum NonceCacheError {
 
 impl NonceCache {
     pub fn new(provider: Provider<Http>) -> Self {
-        NonceCache {
+        let c = NonceCache {
             beacon_block: BeaconBlock::default(),
             nonces: HashMap::new(),
             provider,
-        }
+        };
+        c.report();
+        c
     }
 
     pub async fn get(
@@ -56,6 +61,7 @@ impl NonceCache {
                     .map_err(NonceCacheError::ProviderError)?;
                 let nonce = nonce_u256.as_u64();
                 self.nonces.insert(*account, nonce);
+                self.report();
                 Ok(nonce)
             }
         }
@@ -79,11 +85,16 @@ impl NonceCache {
                 num_modified += 1;
             });
         }
+        self.report();
         log::debug!(
             "applied block {} to nonce cache, updating {} of {} entries",
             self.beacon_block,
             num_modified,
             self.nonces.len(),
         );
+    }
+
+    fn report(&self) {
+        metrics::NONCE_CACHE_SIZE.set(self.nonces.len() as i64);
     }
 }

@@ -1,3 +1,5 @@
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
 use clap::{Parser, Subcommand};
 use color_eyre::{eyre::WrapErr, Result};
 use figment::{
@@ -53,6 +55,9 @@ pub struct Config {
     pub db_enabled: bool,
     #[serde(default)]
     pub db_connection: String,
+
+    #[serde(default = "default_metrics_endpoint")]
+    pub metrics_endpoint: SocketAddr,
 }
 
 impl Config {
@@ -80,4 +85,8 @@ fn default_log_config() -> String {
 
 fn default_sync_check_enabled() -> bool {
     true
+}
+
+fn default_metrics_endpoint() -> SocketAddr {
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080)
 }

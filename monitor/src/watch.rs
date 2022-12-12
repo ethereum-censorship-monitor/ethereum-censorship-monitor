@@ -4,14 +4,18 @@ use ethers::{
     providers::{Http, Middleware, Provider, Ws},
 };
 use thiserror::Error;
-use tokio::sync::{
-    mpsc,
-    mpsc::{Receiver, Sender},
+use tokio::{
+    sync::{
+        mpsc,
+        mpsc::{Receiver, Sender},
+    },
+    time::Instant,
 };
 
 use crate::{
     cli::Config,
     consensus_api::{ConsensusAPIError, ConsensusProvider},
+    metrics,
     types::{url_with_path, BeaconBlock, NewBeaconHeadEvent, NodeKey, TxHash, TxpoolContent},
 };
 
@@ -166,6 +170,9 @@ pub async fn watch_transactions(
     futures::stream::iter(streams_with_channels)
         .for_each_concurrent(None, |(mut stream, tx, error_tx)| async move {
             while let Some((node, hash)) = stream.next().await {
+                metrics::TXS_FROM_PROVIDERS
+                    .with_label_values(&[node.to_string().as_str()])
+                    .inc();
                 let event = Event::NewTransaction {
                     node,
                     hash,
@@ -175,7 +182,8 @@ pub async fn watch_transactions(
                 // send event to channel, but only if it's less than 50% full, drop it
                 // otherwise. Block and pool observations are more important, so we make sure
                 // there's room for them.
-                let relative_capacity = tx.capacity() as f32 / tx.max_capacity() as f32;
+                let relative_capacity = tx.capacity() as f64 / tx.max_capacity() as f64;
+                metrics::EVENT_CHANNEL_CAPACITY.set(relative_capacity);
                 if relative_capacity > 0.5 {
                     if let Err(e) = tx.send(event).await {
                         error_tx.send(WatchError::from(e)).await.ok();
@@ -203,6 +211,8 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
         match event {
             Ok(reqwest_eventsource::Event::Open) => {}
             Ok(reqwest_eventsource::Event::Message(message)) => {
+                metrics::BLOCKS.inc();
+
                 let event: Result<NewBeaconHeadEvent, serde_json::Error> =
                     serde_json::from_str(message.data.as_str());
                 if let Err(e) = event {
@@ -214,8 +224,12 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
                 }
                 let event = event.unwrap();
 
+                let fetch_block_t0 = Instant::now();
                 let beacon_block_without_root =
                     cons_provider.fetch_beacon_block_by_root(event.block).await;
+                metrics::FETCH_BLOCK_DURATION
+                    .observe(Instant::elapsed(&fetch_block_t0).as_millis() as f64 / 1000.);
+
                 if let Err(e) = beacon_block_without_root {
                     es.close();
                     return Err(WatchError::from(e));
@@ -245,7 +259,11 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
             }
         }
 
+        let fetch_pool_t0 = Instant::now();
         let content = exec_provider.txpool_content().await?;
+        metrics::FETCH_POOL_DURATION
+            .observe(Instant::elapsed(&fetch_pool_t0).as_millis() as f64 / 1000.);
+
         let event = Event::TxpoolContent {
             node: 0,
             content,

@@ -5,6 +5,7 @@ mod compare_providers;
 mod consensus_api;
 mod db;
 mod head_history;
+mod metrics;
 mod nonce_cache;
 mod pool;
 mod state;
@@ -66,6 +67,13 @@ async fn run(config: cli::Config) -> Result<()> {
         return Err::<(), Report>(eyre!("node is still syncing"));
     }
 
+    let metrics_config = config.clone();
+    let metrics_handle = tokio::spawn(async move {
+        log::info!("spawning metrics task");
+        metrics::serve(&metrics_config).await;
+        Err::<(), Report>(eyre!("metrics task ended unexpectedly"))
+    });
+
     let process_handle = tokio::spawn(async move {
         while let Some(event) = event_rx.recv().await {
             let analyses = state.process_event(event).await;
@@ -114,6 +122,7 @@ async fn run(config: cli::Config) -> Result<()> {
     });
 
     tokio::select! {
+        r = metrics_handle => r,
         r = process_handle => r,
         r = db_handle => r,
         r = watch_handle => r,

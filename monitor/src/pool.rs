@@ -3,7 +3,10 @@ use std::{cmp::min, collections::HashMap};
 use chrono::{DateTime, Utc};
 use ethers::types::TxpoolContent;
 
-use crate::types::{NodeKey, Transaction, TxHash};
+use crate::{
+    metrics,
+    types::{NodeKey, Transaction, TxHash},
+};
 
 /// ObservedTransaction stores a transaction hash and optionally a transaction
 /// body along with information about its observation history. For each node it
@@ -108,6 +111,8 @@ impl Pool {
             .entry(hash)
             .or_insert_with(|| ObservedTransaction::new(hash))
             .observe(node_key, timestamp);
+
+        self.report();
     }
 
     /// Update the pool with a full snapshot of transactions in it taken on the
@@ -170,6 +175,8 @@ impl Pool {
             num_reappeared,
             self.0.len(),
         );
+
+        self.report();
     }
 
     /// Remove transactions that have already disappeared at the given
@@ -186,6 +193,12 @@ impl Pool {
             len_after,
             len_before - len_after
         );
+
+        self.report();
+    }
+
+    fn report(&self) {
+        metrics::TXS_IN_POOL.set(self.0.len() as i64);
     }
 }
 

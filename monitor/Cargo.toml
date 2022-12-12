@@ -27,3 +27,6 @@ eyre = "0.6.8"
 sqlx = { version = "0.6.2", features = [ "runtime-tokio-native-tls" , "postgres", "chrono", "offline"] }
 itertools = "0.10.5"
 chrono = "0.4.23"
+prometheus = "0.13.3"
+warp = "0.3.3"
+lazy_static = "1.4.0"

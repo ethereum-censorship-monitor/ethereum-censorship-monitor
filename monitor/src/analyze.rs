@@ -7,6 +7,7 @@ use std::{
 use thiserror::Error;
 
 use crate::{
+    metrics,
     nonce_cache::{NonceCache, NonceCacheError},
     pool::{ObservedTransaction, Pool},
     types::{Address, BeaconBlock, ExecutionPayload, Transaction, TxHash, U256},
@@ -282,6 +283,34 @@ pub async fn analyze(
     }
 
     let duration = start_time.elapsed();
+    metrics::ANALYSIS_DURATION.observe(duration.as_millis() as f64 / 1000.);
+    metrics::TRANSACTIONS_IN_BLOCKS.inc_by(txs_in_block.len() as u64);
+    metrics::ANALYZED_TRANSACTIONS.inc_by(num_txs_in_pool as u64);
+    metrics::INCLUDED_TRANSACTIONS.inc_by(included_txs.len() as u64);
+    metrics::QUORUM_NOT_REACHED_TRANSACTIONS.inc_by(num_quorum_not_reached as u64);
+    metrics::ONLY_HASH_TRANSACTIONS.inc_by(num_only_tx_hash as u64);
+    metrics::REPLACED_TRANSACTIONS.inc_by(num_replaced_txs as u64);
+    metrics::NOT_ENOUGH_SPACE_TRANSACTIONS.inc_by(
+        *non_inclusion_reasons
+            .get(&NonInclusionReason::NotEnoughSpace)
+            .unwrap_or(&0) as u64,
+    );
+    metrics::BASE_FEE_TOO_LOW_TRANSACTIONS.inc_by(
+        *non_inclusion_reasons
+            .get(&NonInclusionReason::BaseFeeTooLow)
+            .unwrap_or(&0) as u64,
+    );
+    metrics::TIP_TOO_LOW_TRANSACTIONS.inc_by(
+        *non_inclusion_reasons
+            .get(&NonInclusionReason::TipTooLow)
+            .unwrap_or(&0) as u64,
+    );
+    metrics::NONCE_MISMATCH_TRANSACTIONS.inc_by(
+        *non_inclusion_reasons
+            .get(&NonInclusionReason::NonceMismatch)
+            .unwrap_or(&0) as u64,
+    );
+    metrics::MISSING_TRANSACTIONS.inc_by(missing_txs.len() as u64);
 
     Ok(Analysis {
         beacon_block: beacon_block.clone(),
