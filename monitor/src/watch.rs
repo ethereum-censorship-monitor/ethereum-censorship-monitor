@@ -228,7 +228,7 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
                 let beacon_block_without_root =
                     cons_provider.fetch_beacon_block_by_root(event.block).await;
                 metrics::FETCH_BLOCK_DURATION
-                    .observe(Instant::elapsed(&fetch_block_t0).as_millis() as f64 / 1000.);
+                    .set(Instant::elapsed(&fetch_block_t0).as_millis() as f64 / 1000.);
 
                 if let Err(e) = beacon_block_without_root {
                     es.close();
@@ -262,7 +262,7 @@ async fn watch_heads(node_config: NodeConfig, tx: Sender<Event>) -> Result<(), W
         let fetch_pool_t0 = Instant::now();
         let content = exec_provider.txpool_content().await?;
         metrics::FETCH_POOL_DURATION
-            .observe(Instant::elapsed(&fetch_pool_t0).as_millis() as f64 / 1000.);
+            .set(Instant::elapsed(&fetch_pool_t0).as_millis() as f64 / 1000.);
 
         let event = Event::TxpoolContent {
             node: 0,

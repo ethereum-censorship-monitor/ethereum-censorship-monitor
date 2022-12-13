@@ -1,7 +1,7 @@
 use lazy_static::lazy_static;
 use prometheus::{
-    opts, register_gauge, register_histogram, register_int_counter, register_int_counter_vec,
-    register_int_gauge, Encoder, Gauge, Histogram, IntCounter, IntCounterVec, IntGauge,
+    opts, register_gauge, register_int_counter, register_int_counter_vec, register_int_gauge,
+    Encoder, Gauge, IntCounter, IntCounterVec, IntGauge,
 };
 use warp::Filter;
 
@@ -24,15 +24,14 @@ lazy_static! {
     pub static ref EVENT_CHANNEL_CAPACITY: Gauge =
         register_gauge!("event_channel_capacity", "Event channel capacity")
             .expect("can create metric");
-    pub static ref FETCH_BLOCK_DURATION: Histogram =
-        register_histogram!("fetch_block_duration", "Fetch block duration (s)")
+    pub static ref FETCH_BLOCK_DURATION: Gauge =
+        register_gauge!("fetch_block_duration", "Fetch block duration (s)")
             .expect("can create metric");
-    pub static ref FETCH_POOL_DURATION: Histogram =
-        register_histogram!("fetch_pool_duration", "Fetch pool duration (s)")
+    pub static ref FETCH_POOL_DURATION: Gauge =
+        register_gauge!("fetch_pool_duration", "Fetch pool duration (s)")
             .expect("can create metric");
-    pub static ref ANALYSIS_DURATION: Histogram =
-        register_histogram!("analysis_duration", "Analysis duration (s)")
-            .expect("can create metric");
+    pub static ref ANALYSIS_DURATION: Gauge =
+        register_gauge!("analysis_duration", "Analysis duration (s)").expect("can create metric");
     pub static ref TRANSACTIONS_IN_BLOCKS: IntCounter =
         register_int_counter!("transactions_in_blocks", "Transactions in blocks")
             .expect("can create metric");

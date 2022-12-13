@@ -283,7 +283,7 @@ pub async fn analyze(
     }
 
     let duration = start_time.elapsed();
-    metrics::ANALYSIS_DURATION.observe(duration.as_millis() as f64 / 1000.);
+    metrics::ANALYSIS_DURATION.set(duration.as_millis() as f64 / 1000.);
     metrics::TRANSACTIONS_IN_BLOCKS.inc_by(txs_in_block.len() as u64);
     metrics::ANALYZED_TRANSACTIONS.inc_by(num_txs_in_pool as u64);
     metrics::INCLUDED_TRANSACTIONS.inc_by(included_txs.len() as u64);
