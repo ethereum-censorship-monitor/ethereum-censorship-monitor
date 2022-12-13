@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use chrono::{DateTime, Duration, Utc};
 use ethers::types::Transaction;
 
-use crate::types::BeaconBlock;
+use crate::{metrics, types::BeaconBlock};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObservedHead {
@@ -40,6 +40,7 @@ impl HeadHistory {
             self.0.len(),
         );
         self.0.insert(i, ObservedHead { head, timestamp });
+        self.report();
     }
 
     /// Delete blocks that do not affect the history at or after cutoff.
@@ -60,6 +61,7 @@ impl HeadHistory {
                 break;
             }
         }
+        self.report();
     }
 
     /// Get the block we considered the head at the given time, if any.
@@ -71,6 +73,10 @@ impl HeadHistory {
         let oh = self.0.get(j)?;
         assert!(oh.timestamp <= timestamp);
         Some(oh.clone())
+    }
+
+    fn report(&self) {
+        metrics::HEAD_HISTORY_LENGTH.set(self.0.len() as i64);
     }
 }
 

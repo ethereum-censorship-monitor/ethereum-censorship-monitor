@@ -10,6 +10,9 @@ use crate::cli::Config;
 lazy_static! {
     pub static ref TXS_IN_POOL: IntGauge =
         register_int_gauge!("txs_in_pool", "Transactions in pool").expect("can create metric");
+    pub static ref HEAD_HISTORY_LENGTH: IntGauge =
+        register_int_gauge!(opts!("head_history_length", "Head history length"))
+            .expect("can create metric");
     pub static ref TXS_FROM_PROVIDERS: IntCounterVec = register_int_counter_vec!(
         "txs_from_providers",
         "Transactions from providers",
