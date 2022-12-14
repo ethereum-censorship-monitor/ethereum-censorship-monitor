@@ -45,8 +45,9 @@ impl ObservedTransaction {
             let t0 = self.first_seen.values().min().unwrap();
             let t1 = self.first_seen.values().max().unwrap();
             let dt = (*t1 - *t0).num_milliseconds() as f64 / 1000.;
+            let q = self.first_seen.len();
             metrics::QUORUM_DURATIONS
-                .with_label_values(&[node_key.to_string().as_str()])
+                .with_label_values(&[q.to_string().as_str()])
                 .observe(dt);
         }
     }
