@@ -163,7 +163,7 @@ pub fn check_tip_too_low(
     transaction: &Transaction,
     exec: &ExecutionPayload<Transaction>,
 ) -> Result<bool, TransactionError> {
-    let min_tip = get_min_tip(&exec.transactions, exec.base_fee_per_gas);
+    let min_tip = get_min_nonzero_tip(&exec.transactions, exec.base_fee_per_gas);
     match get_tip(transaction, exec.base_fee_per_gas) {
         Ok(tip) => Ok(tip < min_tip),
         Err(TransactionError::FeeTooLow {
@@ -188,10 +188,11 @@ pub async fn check_nonce_mismatch(
 /// Get the minimum tip of the given transactions. Transactions with missing
 /// required fields are ignored. If there's no transactions to consider, returns
 /// the maximum of U256.
-fn get_min_tip(transactions: &[Transaction], base_fee: U256) -> U256 {
+fn get_min_nonzero_tip(transactions: &[Transaction], base_fee: U256) -> U256 {
     transactions
         .iter()
         .filter_map(|tx| get_tip(tx, base_fee).ok())
+        .filter(|tip| !tip.is_zero())
         .min()
         .unwrap_or(U256::MAX)
 }
