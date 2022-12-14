@@ -36,6 +36,12 @@ pub enum TransactionError {
     MissingRequiredField { name: String },
     #[error("transaction has type {transaction_type} which is not supported")]
     UnsupportedType { transaction_type: u64 },
+    #[error("transaction fee is lower than base fee")]
+    FeeTooLow {
+        max_fee: U256,
+        base_fee: U256,
+        transaction_type: u64,
+    },
 }
 
 /// Perform all inclusion checks.
@@ -78,7 +84,15 @@ fn get_tip(transaction: &Transaction, base_fee: U256) -> Result<U256, Transactio
             .ok_or(TransactionError::MissingRequiredField {
                 name: String::from("gasPrice"),
             })?;
-        Ok(gas_price - base_fee)
+        if gas_price < base_fee {
+            Err(TransactionError::FeeTooLow {
+                max_fee: gas_price,
+                base_fee,
+                transaction_type: t,
+            })
+        } else {
+            Ok(gas_price - base_fee)
+        }
     } else if t == 2 {
         let max_fee_per_gas =
             transaction
@@ -92,7 +106,15 @@ fn get_tip(transaction: &Transaction, base_fee: U256) -> Result<U256, Transactio
                 .ok_or(TransactionError::MissingRequiredField {
                     name: String::from("maxPriorityFeePerGas"),
                 })?;
-        Ok(min(max_fee_per_gas - base_fee, max_priority_fee_per_gas))
+        if max_fee_per_gas < base_fee {
+            Err(TransactionError::FeeTooLow {
+                max_fee: max_fee_per_gas,
+                base_fee,
+                transaction_type: t,
+            })
+        } else {
+            Ok(min(max_fee_per_gas - base_fee, max_priority_fee_per_gas))
+        }
     } else {
         Err(TransactionError::UnsupportedType {
             transaction_type: t,
@@ -142,7 +164,15 @@ pub fn check_tip_too_low(
     exec: &ExecutionPayload<Transaction>,
 ) -> Result<bool, TransactionError> {
     let min_tip = get_min_tip(&exec.transactions, exec.base_fee_per_gas);
-    Ok(get_tip(transaction, exec.base_fee_per_gas)? < min_tip)
+    match get_tip(transaction, exec.base_fee_per_gas) {
+        Ok(tip) => Ok(tip < min_tip),
+        Err(TransactionError::FeeTooLow {
+            max_fee: _,
+            base_fee: _,
+            transaction_type: _,
+        }) => Ok(true),
+        Err(e) => Err(e),
+    }
 }
 
 /// Check if there is a mismatch between transaction and account nonce.
