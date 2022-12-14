@@ -35,8 +35,20 @@ impl ObservedTransaction {
     /// Set the first seen time at the given node. If a timestamp has already
     /// been recorded for the node, keep the earlier one.
     pub fn observe(&mut self, node_key: NodeKey, timestamp: DateTime<Utc>) {
+        let seen_before = self.first_seen.len();
+
         let t = self.first_seen.entry(node_key).or_insert(timestamp);
         *t = min(*t, timestamp);
+
+        let seen_after = self.first_seen.len();
+        if seen_after > seen_before {
+            let t0 = self.first_seen.values().min().unwrap();
+            let t1 = self.first_seen.values().max().unwrap();
+            let dt = (*t1 - *t0).num_milliseconds() as f64 / 1000.;
+            metrics::QUORUM_DURATIONS
+                .with_label_values(&[node_key.to_string().as_str()])
+                .observe(dt);
+        }
     }
 
     /// Set the disappeared timestamp. If a timestamp has already been recorded,

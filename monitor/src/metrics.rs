@@ -1,7 +1,7 @@
 use lazy_static::lazy_static;
 use prometheus::{
-    opts, register_gauge, register_int_counter, register_int_counter_vec, register_int_gauge,
-    Encoder, Gauge, IntCounter, IntCounterVec, IntGauge,
+    opts, register_gauge, register_histogram_vec, register_int_counter, register_int_counter_vec,
+    register_int_gauge, Encoder, Gauge, HistogramVec, IntCounter, IntCounterVec, IntGauge,
 };
 use warp::Filter;
 
@@ -86,6 +86,12 @@ lazy_static! {
     pub static ref MISSING_TRANSACTIONS: IntCounter = register_int_counter!(
         "missing_transactions",
         "Analyzed transactions that should have been included but weren't"
+    )
+    .expect("can create metric");
+    pub static ref QUORUM_DURATIONS: HistogramVec = register_histogram_vec!(
+        "quorum_durations",
+        "Time it takes for transactions to reach a quorum",
+        &["quorum"]
     )
     .expect("can create metric");
 }
