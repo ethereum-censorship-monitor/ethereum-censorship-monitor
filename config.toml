@@ -1,11 +1,14 @@
-log = "info,monitor=debug"
+log = "info,monitor=debug,sqlx=warn,warp=warn"
 
 execution_http_url = "http://1.geth.mainnet.ethnodes.brainbot.com:8545/"
 main_execution_ws_url = "ws://1.geth.mainnet.ethnodes.brainbot.com:8546/"
-secondary_execution_ws_urls = []
+secondary_execution_ws_urls = ["wss://nameless-damp-uranium.discover.quiknode.pro/f0aa2b0ded2234f989ac5d84f50136c64d501c83/", "wss://mainnet.infura.io/ws/v3/c2ca6b2d2b404094b6e63a554ffcb746"]
 consensus_http_url = "http://1.geth.mainnet.ethnodes.brainbot.com:5052/"
 
 sync_check_enabled = true
 
 db_enabled = true
 db_connection = "postgres://postgres@localhost:5432/monitor"
+
+metrics_enabled = true
+metrics_endpoint = "127.0.0.1:8080"

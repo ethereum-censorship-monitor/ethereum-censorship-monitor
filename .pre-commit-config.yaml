@@ -3,27 +3,27 @@ repos:
     hooks:
       - id: cargo-check
         name: cargo-check
-        entry: cargo +nightly check --manifest-path=./monitor/Cargo.toml
+        entry: cargo +nightly check
         language: system
-        files: ^monitor/.*.rs$
+        files: ^.*\.rs$
         require_serial: true
         pass_filenames: false
       - id: cargo-fmt
         name: cargo-fmt
-        entry: cargo +nightly fmt --manifest-path=./monitor/Cargo.toml --
+        entry: cargo +nightly fmt --
         language: system
-        files: ^monitor/.*.rs$
+        files: ^.*\.rs$
         require_serial: true
       - id: clippy
         name: clippy
-        entry: cargo clippy --manifest-path=./monitor/Cargo.toml -- --deny "warnings"
+        entry: cargo clippy -- --deny "warnings"
         language: system
-        files: ^monitor/.*.rs$
+        files: ^.*\.rs$
         require_serial: true
         pass_filenames: false
       - id: sqlx-prepare
         name: sqlx-prepare
         entry: bash -c 'cd monitor; cargo sqlx prepare'
         language: system
-        files: ^monitor/migrations/.*\.sql$|^monitor/sqlx-data\.json$
+        files: ^migrations/.*\.sql$|^sqlx-data\.json$
         pass_filenames: false
