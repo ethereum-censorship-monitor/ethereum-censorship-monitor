@@ -31,7 +31,7 @@ pub enum Commands {
     Check {
         txhash: String,
         /// Number of blocks to check
-        #[arg(short, default_value_t = 1)]
+        #[arg(short, default_value_t = 5)]
         n: usize,
     },
     /// Compare the pending transaction streams sent by the different providers.
