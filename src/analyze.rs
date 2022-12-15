@@ -76,7 +76,7 @@ fn get_transaction_type(transaction: &Transaction) -> Result<u64, TransactionErr
 
 /// Calculate the tip amount a transaction would pay in a block with given base
 /// fee.
-fn get_tip(transaction: &Transaction, base_fee: U256) -> Result<U256, TransactionError> {
+pub fn get_tip(transaction: &Transaction, base_fee: U256) -> Result<U256, TransactionError> {
     let t = get_transaction_type(transaction)?;
     if t == 0 || t == 1 {
         let gas_price = transaction
@@ -188,13 +188,34 @@ pub async fn check_nonce_mismatch(
 /// Get the minimum tip of the given transactions. Transactions with missing
 /// required fields are ignored. If there's no transactions to consider, returns
 /// the maximum of U256.
-fn get_min_nonzero_tip(transactions: &[Transaction], base_fee: U256) -> U256 {
+pub fn get_min_nonzero_tip(transactions: &[Transaction], base_fee: U256) -> U256 {
     transactions
         .iter()
         .filter_map(|tx| get_tip(tx, base_fee).ok())
         .filter(|tip| !tip.is_zero())
         .min()
         .unwrap_or(U256::MAX)
+}
+
+/// Get the median tip amount of the given transactions. Transactions with
+/// missing required fields are ignored. If there's no transactions to consider,
+/// returns the maximum of U256.
+pub fn get_median_tip(transactions: &[Transaction], base_fee: U256) -> U256 {
+    let mut tips: Vec<U256> = transactions
+        .iter()
+        .filter_map(|tx| get_tip(tx, base_fee).ok())
+        .collect();
+    let n = tips.len();
+    if n == 0 {
+        U256::MAX
+    } else {
+        tips.sort();
+        if n % 2 == 0 {
+            (tips[n / 2 - 1] + tips[n / 2]) / 2
+        } else {
+            tips[(n - 1) / 2]
+        }
+    }
 }
 
 #[derive(Debug)]

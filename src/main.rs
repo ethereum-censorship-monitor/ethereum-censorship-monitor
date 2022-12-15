@@ -1,4 +1,5 @@
 mod analyze;
+mod check_gas_price;
 mod check_transaction;
 mod cli;
 mod compare_providers;
@@ -40,6 +41,9 @@ async fn main() -> Result<()> {
         cli::Commands::TruncateDB => truncate_db(config).await,
         cli::Commands::Check { txhash, n } => check(config, txhash, n).await,
         cli::Commands::CompareProviders => compare_providers(config).await,
+        cli::Commands::CheckGasPrice { txhash, slot } => {
+            check_gas_price(config, txhash, slot).await
+        }
     }
 }
 
@@ -155,4 +159,9 @@ async fn check(config: cli::Config, tx_hash: String, n: usize) -> Result<()> {
 
 async fn compare_providers(config: cli::Config) -> Result<()> {
     compare_providers::compare_providers(&config).await
+}
+
+async fn check_gas_price(config: cli::Config, tx_hash: String, slot: u64) -> Result<()> {
+    let hash = types::TxHash::from_str(tx_hash.as_str())?;
+    check_gas_price::check_gas_price(config, hash, slot).await
 }
