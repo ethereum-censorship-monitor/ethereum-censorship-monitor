@@ -163,9 +163,9 @@ pub fn check_tip_too_low(
     transaction: &Transaction,
     exec: &ExecutionPayload<Transaction>,
 ) -> Result<bool, TransactionError> {
-    let min_tip = get_min_nonzero_tip(&exec.transactions, exec.base_fee_per_gas);
+    let median_tip = get_median_tip(&exec.transactions, exec.base_fee_per_gas);
     match get_tip(transaction, exec.base_fee_per_gas) {
-        Ok(tip) => Ok(tip < min_tip),
+        Ok(tip) => Ok(tip < median_tip),
         Err(TransactionError::FeeTooLow {
             max_fee: _,
             base_fee: _,
