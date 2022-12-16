@@ -30,6 +30,10 @@ pub async fn check_gas_price(config: Config, tx_hash: TxHash, slot: u64) -> Resu
     .unwrap();
     let tx_tip = get_tip(&tx, block_base_fee).unwrap();
 
+    let block_gas_limit = exec.gas_limit;
+    let block_gas_used = exec.gas_used;
+    let tx_gas_limit = tx.gas;
+
     fn gwei(i: U256) -> String {
         format!("{:.2}gwei", i.as_u64() as f64 / 1_000_000_000.)
     }
@@ -40,5 +44,9 @@ pub async fn check_gas_price(config: Config, tx_hash: TxHash, slot: u64) -> Resu
     println!("   block min tip: {}", gwei(min_tip));
     println!("block median tip: {}", gwei(median_tip));
     println!("          tx tip: {}", gwei(tx_tip));
+    println!(" block gas limit: {}", block_gas_limit);
+    println!("  block gas used: {}", block_gas_used);
+    println!("block unused gas: {}", block_gas_limit - block_gas_used);
+    println!("    tx gas limit: {}", tx_gas_limit);
     Ok(())
 }
