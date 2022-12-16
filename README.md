@@ -91,6 +91,6 @@ the root endpoint. A few example queries are listed below. For more information,
 checkout the [documentation](https://postgrest.org/en/stable/api.html) of
 PostgREST which runs behind the scenes.
 
-- `https://api.ethereum-censorship-monitor.org/rich_misses?order=proposal_time.desc&limit=3&offset=0`
-- `https://api.ethereum-censorship-monitor.org/transaction?order=first_seen.desc&limit=3&offset=0`
-- `https://api.ethereum-censorship-monitor.org/beacon_block?order=slot.desc&limit=3&offset=0`
+- `https://api.ethereum-censorship-monitor.org/v0/rich_misses?order=proposal_time.desc&limit=3&offset=0`
+- `https://api.ethereum-censorship-monitor.org/v0/transaction?order=first_seen.desc&limit=3&offset=0`
+- `https://api.ethereum-censorship-monitor.org/v0/beacon_block?order=slot.desc&limit=3&offset=0`
