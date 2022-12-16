@@ -8,7 +8,7 @@ use crate::{
     watch::NodeConfig,
 };
 
-pub async fn check_gas_price(config: Config, tx_hash: TxHash, slot: u64) -> Result<()> {
+pub async fn check_gas(config: Config, tx_hash: TxHash, slot: u64) -> Result<()> {
     let node_config = NodeConfig::from(&config);
     let ep = node_config.execution_http_provider();
     let cp = node_config.consensus_provider();

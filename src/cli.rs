@@ -36,8 +36,8 @@ pub enum Commands {
     },
     /// Compare the pending transaction streams sent by the different providers.
     CompareProviders,
-    /// Print gas price information about a transaction and a block.
-    CheckGasPrice { txhash: String, slot: u64 },
+    /// Print gas information about a transaction and a block.
+    CheckGas { txhash: String, slot: u64 },
 }
 
 #[derive(Deserialize, Debug, Clone)]
