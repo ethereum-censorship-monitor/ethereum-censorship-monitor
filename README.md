@@ -81,3 +81,16 @@ db_connection = ""
 metrics_enabled = true
 metrics_endpoint = "127.0.0.1:8080"
 ```
+
+## API
+
+We provide a REST API at `https://api.ethereum-censorship-monitor.org` that
+makes the censorship data publicly accessible. It conforms to the
+[OpenAPI](https://openapis.org) specification, the description is available at
+the root endpoint. A few example queries are listed below. For more information,
+checkout the [documentation](https://postgrest.org/en/stable/api.html) of
+PostgREST which runs behind the scenes.
+
+- `https://api.ethereum-censorship-monitor.org/rich_misses?order=proposal_time.desc&limit=3&offset=0`
+- `https://api.ethereum-censorship-monitor.org/transaction?order=first_seen.desc&limit=3&offset=0`
+- `https://api.ethereum-censorship-monitor.org/beacon_block?order=slot.desc&limit=3&offset=0`
