@@ -105,11 +105,9 @@ impl NonceCache {
     }
 
     fn prune(&mut self) {
-        let mut n = 0;
         while self.nonces.len() > self.max_size {
             if let Some(oldest_account) = self.last_access_time.pop_first() {
                 self.nonces.remove(&oldest_account.0);
-                n += 1;
             } else {
                 log::error!(
                     "failed to prune nonce cache: last access time map is empty, but still too \
@@ -117,11 +115,6 @@ impl NonceCache {
                 );
             }
         }
-        log::debug!(
-            "pruned {} of {} accounts in nonce cache",
-            n,
-            self.nonces.len() + n
-        );
     }
 
     fn report(&self) {
