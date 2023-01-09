@@ -3,6 +3,7 @@ use ethers::types::Transaction;
 
 use crate::{
     analyze::{analyze, Analysis},
+    cli::Config,
     head_history::HeadHistory,
     nonce_cache::NonceCache,
     pool::Pool,
@@ -23,12 +24,13 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(node_config: &NodeConfig) -> Self {
+    pub fn new(config: &Config) -> Self {
         let pool = Pool::new();
         let head_history = HeadHistory::new();
 
+        let node_config = NodeConfig::from(config);
         let nonce_cache_provider = node_config.execution_http_provider();
-        let nonce_cache = NonceCache::new(nonce_cache_provider);
+        let nonce_cache = NonceCache::new(nonce_cache_provider, config.nonce_cache_size);
 
         State {
             pool,

@@ -46,14 +46,14 @@ async fn main() -> Result<()> {
 }
 
 async fn run(config: cli::Config) -> Result<()> {
-    let node_config = watch::NodeConfig::from(&config);
-    let mut state = state::State::new(&node_config);
+    let mut state = state::State::new(&config);
 
     let (event_tx, mut event_rx): (Sender<watch::Event>, Receiver<watch::Event>) =
         mpsc::channel(1000);
     let (analysis_tx, mut analysis_rx): (Sender<analyze::Analysis>, Receiver<analyze::Analysis>) =
         mpsc::channel(1000);
 
+    let node_config = watch::NodeConfig::from(&config);
     node_config
         .test_connection()
         .await

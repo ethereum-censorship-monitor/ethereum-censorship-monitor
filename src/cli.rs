@@ -60,6 +60,9 @@ pub struct Config {
 
     #[serde(default = "default_metrics_endpoint")]
     pub metrics_endpoint: SocketAddr,
+
+    #[serde(default = "default_nonce_cache_size")]
+    pub nonce_cache_size: usize,
 }
 
 impl Config {
@@ -91,4 +94,8 @@ fn default_sync_check_enabled() -> bool {
 
 fn default_metrics_endpoint() -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080)
+}
+
+fn default_nonce_cache_size() -> usize {
+    1000
 }

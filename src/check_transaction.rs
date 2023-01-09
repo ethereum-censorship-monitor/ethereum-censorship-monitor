@@ -26,7 +26,10 @@ pub async fn check_transaction(
     let node_config = NodeConfig::from(config);
     let execution_provider = node_config.execution_http_provider();
     let consensus_provider = node_config.consensus_provider();
-    let mut nonce_cache = NonceCache::new(node_config.execution_http_provider());
+    let mut nonce_cache = NonceCache::new(
+        node_config.execution_http_provider(),
+        config.nonce_cache_size,
+    );
 
     let transaction = execution_provider
         .get_transaction(transaction_hash)

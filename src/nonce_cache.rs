@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::{BTreeMap, HashMap},
+    time::Instant,
+};
 
 use ethers::{
     providers::{Http, Middleware, Provider, ProviderError},
@@ -14,6 +17,8 @@ use crate::{
 pub struct NonceCache {
     beacon_block: BeaconBlock<Transaction>,
     nonces: HashMap<Address, u64>,
+    last_access_time: BTreeMap<Address, Instant>,
+    max_size: usize,
     provider: Provider<Http>,
 }
 
@@ -26,10 +31,12 @@ pub enum NonceCacheError {
 }
 
 impl NonceCache {
-    pub fn new(provider: Provider<Http>) -> Self {
+    pub fn new(provider: Provider<Http>, max_size: usize) -> Self {
         let c = NonceCache {
             beacon_block: BeaconBlock::default(),
             nonces: HashMap::new(),
+            last_access_time: BTreeMap::new(),
+            max_size,
             provider,
         };
         c.report();
@@ -48,6 +55,8 @@ impl NonceCache {
             });
         }
 
+        self.last_access_time.insert(*account, Instant::now());
+
         let block_id = Some(BlockId::Hash(
             beacon_block.body.execution_payload.block_hash,
         ));
@@ -61,6 +70,7 @@ impl NonceCache {
                     .map_err(NonceCacheError::ProviderError)?;
                 let nonce = nonce_u256.as_u64();
                 self.nonces.insert(*account, nonce);
+                self.prune();
                 self.report();
                 Ok(nonce)
             }
@@ -91,6 +101,26 @@ impl NonceCache {
             self.beacon_block,
             num_modified,
             self.nonces.len(),
+        );
+    }
+
+    fn prune(&mut self) {
+        let mut n = 0;
+        while self.nonces.len() > self.max_size {
+            if let Some(oldest_account) = self.last_access_time.pop_first() {
+                self.nonces.remove(&oldest_account.0);
+                n += 1;
+            } else {
+                log::error!(
+                    "failed to prune nonce cache: last access time map is empty, but still too \
+                     many nonces"
+                );
+            }
+        }
+        log::debug!(
+            "pruned {} of {} accounts in nonce cache",
+            n,
+            self.nonces.len() + n
         );
     }
 
