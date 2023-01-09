@@ -1,22 +1,5 @@
 {
   "db": "PostgreSQL",
-  "5f0409b30d5c246a8c81996af045e249412a6d083271f18cb76331e7f3e36ed1": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Bpchar",
-          "Int4",
-          "Int4",
-          "Bpchar",
-          "Int4",
-          "Timestamp"
-        ]
-      }
-    },
-    "query": "\n        INSERT INTO data.beacon_block (\n            root,\n            slot,\n            proposer_index,\n            execution_block_hash,\n            execution_block_number,\n            proposal_time\n        ) VALUES (\n            $1,\n            $2,\n            $3,\n            $4,\n            $5,\n            $6\n        ) ON CONFLICT DO NOTHING;\n        "
-  },
   "8b9c5ca1e78042d506d4db56ba1c3b1c732cc725e4777d724b8a9200e4c7b0ad": {
     "describe": {
       "columns": [],
@@ -56,5 +39,24 @@
       }
     },
     "query": "\n        TRUNCATE miss, transaction, beacon_block RESTART IDENTITY;\n        "
+  },
+  "f35de3c69c238c7af4390b8c260f3bdb45eb6c30a4d90c59ac41266f7787dfc0": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Bpchar",
+          "Int4",
+          "Int4",
+          "Bpchar",
+          "Int4",
+          "Timestamp",
+          "Int4",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n        INSERT INTO data.beacon_block (\n            root,\n            slot,\n            proposer_index,\n            execution_block_hash,\n            execution_block_number,\n            proposal_time,\n            num_transactions,\n            num_pool_transactions\n        ) VALUES (\n            $1,\n            $2,\n            $3,\n            $4,\n            $5,\n            $6,\n            $7,\n            $8\n        ) ON CONFLICT DO NOTHING;\n        "
   }
 }
