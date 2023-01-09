@@ -65,22 +65,7 @@ pub async fn insert_analysis_into_db(analysis: &Analysis, pool: &Pool) -> Result
     .await?;
 
     for missing_transaction in analysis.missing_transactions.values() {
-        if missing_transaction.transaction.is_none() {
-            log::error!("tried to insert transaction without body into db");
-            continue;
-        }
-        let transaction = missing_transaction.transaction.as_ref().unwrap();
-        let transaction_hash_str = encode_hex_prefixed(transaction.hash);
-
-        let first_seen = missing_transaction.quorum_reached_timestamp(1);
-        let quorum_reached = missing_transaction.quorum_reached_timestamp(analysis.quorum);
-        if first_seen.is_none() || quorum_reached.is_none() {
-            log::error!("transaction without quorum considered as missing");
-            continue;
-        }
-        let first_seen = first_seen.unwrap();
-        let quorum_reached = quorum_reached.unwrap();
-
+        let transaction_hash_str = encode_hex_prefixed(missing_transaction.transaction.hash);
         let queries = [
             sqlx::query!(
                 r#"
@@ -97,25 +82,28 @@ pub async fn insert_analysis_into_db(analysis: &Analysis, pool: &Pool) -> Result
             ) ON CONFLICT DO NOTHING;
             "#,
                 transaction_hash_str,
-                encode_hex_prefixed(transaction.from),
-                first_seen.naive_utc(),
-                quorum_reached.naive_utc(),
+                encode_hex_prefixed(missing_transaction.transaction.from),
+                missing_transaction.first_seen.naive_utc(),
+                missing_transaction.quorum_reached.naive_utc(),
             ),
             sqlx::query!(
                 r#"
             INSERT INTO data.miss (
                 transaction_hash,
                 beacon_block_root,
-                proposal_time
+                proposal_time,
+                tip
             ) VALUES (
                 $1,
                 $2,
-                $3
+                $3,
+                $4
             ) ON CONFLICT DO NOTHING;
             "#,
                 transaction_hash_str,
                 beacon_root_str,
                 analysis.beacon_block.proposal_time().naive_utc(),
+                missing_transaction.tip,
             ),
         ];
         for query in queries {

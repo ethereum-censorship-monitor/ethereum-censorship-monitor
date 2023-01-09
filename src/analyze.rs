@@ -4,6 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use chrono::{DateTime, Utc};
 use thiserror::Error;
 
 use crate::{
@@ -222,7 +223,7 @@ pub fn get_median_tip(transactions: &[Transaction], base_fee: U256) -> U256 {
 pub struct Analysis {
     pub beacon_block: BeaconBlock<Transaction>,
     pub quorum: usize,
-    pub missing_transactions: HashMap<TxHash, ObservedTransaction>,
+    pub missing_transactions: HashMap<TxHash, MissedTransaction>,
     pub included_transactions: HashMap<TxHash, ObservedTransaction>,
     pub num_txs_in_block: usize,
     pub num_txs_in_pool: usize,
@@ -231,6 +232,15 @@ pub struct Analysis {
     pub num_replaced_txs: usize,
     pub non_inclusion_reasons: HashMap<NonInclusionReason, usize>,
     pub duration: Duration,
+}
+
+#[derive(Debug, Clone)]
+pub struct MissedTransaction {
+    pub hash: TxHash,
+    pub transaction: Transaction,
+    pub first_seen: DateTime<Utc>,
+    pub quorum_reached: DateTime<Utc>,
+    pub tip: i64,
 }
 
 impl Analysis {
@@ -318,7 +328,39 @@ pub async fn analyze(
         match check_inclusion(tx, beacon_block, nonce_cache).await {
             Ok(Some(reason)) => *non_inclusion_reasons.entry(reason).or_insert(0) += 1,
             Ok(None) => {
-                missing_txs.insert(hash, obs_tx);
+                if obs_tx.transaction.is_none() {
+                    log::error!("transaction without body failed inclusion checks");
+                    continue;
+                }
+                let first_seen = obs_tx.quorum_reached_timestamp(1);
+                let quorum_reached = obs_tx.quorum_reached_timestamp(quorum);
+                if first_seen.is_none() || quorum_reached.is_none() {
+                    log::error!("transaction without quorum failed inclusion checks");
+                    continue;
+                }
+                let tx = obs_tx.transaction.unwrap();
+                let tip = get_tip(&tx, beacon_block.body.execution_payload.base_fee_per_gas);
+                if let Err(e) = tip {
+                    log::error!(
+                        "transaction whose tip we cannot determine failed inclusion checks ({})",
+                        e
+                    );
+                    continue;
+                }
+                let tip = tip.unwrap();
+                if tip > U256::from(i64::MAX) {
+                    log::warn!("ignoring tx with huge tip");
+                    continue;
+                }
+                let tip = tip.as_u64() as i64;
+                let missed_tx = MissedTransaction {
+                    hash: obs_tx.hash,
+                    transaction: tx,
+                    first_seen: first_seen.unwrap(),
+                    quorum_reached: quorum_reached.unwrap(),
+                    tip,
+                };
+                missing_txs.insert(hash, missed_tx);
             }
             Err(InclusionCheckError::TransactionError(e)) => {
                 log::warn!(
