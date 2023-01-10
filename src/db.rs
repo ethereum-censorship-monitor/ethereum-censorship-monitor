@@ -111,6 +111,43 @@ pub async fn insert_analysis_into_db(analysis: &Analysis, pool: &Pool) -> Result
                 analysis.beacon_block.proposal_time().naive_utc(),
                 missing_transaction.tip,
             ),
+            sqlx::query!(
+                r#"
+            INSERT INTO data.full_miss (
+                block_hash,
+                tx_hash,
+                slot,
+                block_number,
+                proposal_time,
+                proposer_index,
+                tx_first_seen,
+                tx_quorum_reached,
+                sender,
+                tip
+            ) VALUES (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10
+            ) ON CONFLICT DO NOTHING;
+            "#,
+                encode_hex_prefixed(exec.block_hash),
+                transaction_hash_str,
+                block.slot.as_u64() as i64,
+                exec.block_number.as_u64() as i64,
+                analysis.beacon_block.proposal_time().naive_utc(),
+                analysis.beacon_block.proposer_index.as_u64() as i64,
+                missing_transaction.first_seen.naive_utc(),
+                missing_transaction.quorum_reached.naive_utc(),
+                encode_hex_prefixed(missing_transaction.transaction.from),
+                missing_transaction.tip,
+            ),
         ];
         for query in queries {
             query.execute(&mut tx).await?;
