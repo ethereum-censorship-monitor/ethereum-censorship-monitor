@@ -40,6 +40,27 @@
     },
     "query": "\n        TRUNCATE miss, transaction, beacon_block RESTART IDENTITY;\n        "
   },
+  "d1b26cd7a29e8a47e439fb78af553156804683ee8f5533939327148e6d3d4e01": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Bpchar",
+          "Bpchar",
+          "Int4",
+          "Int4",
+          "Timestamp",
+          "Int4",
+          "Timestamp",
+          "Timestamp",
+          "Bpchar",
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO data.full_miss (\n                block_hash,\n                tx_hash,\n                slot,\n                block_number,\n                proposal_time,\n                proposer_index,\n                tx_first_seen,\n                tx_quorum_reached,\n                sender,\n                tip\n            ) VALUES (\n                $1,\n                $2,\n                $3,\n                $4,\n                $5,\n                $6,\n                $7,\n                $8,\n                $9,\n                $10\n            ) ON CONFLICT DO NOTHING;\n            "
+  },
   "f35de3c69c238c7af4390b8c260f3bdb45eb6c30a4d90c59ac41266f7787dfc0": {
     "describe": {
       "columns": [],
