@@ -2,7 +2,7 @@ use hex::ToHex;
 
 use crate::analyze::Analysis;
 
-type Pool = sqlx::Pool<sqlx::Postgres>;
+pub type Pool = sqlx::Pool<sqlx::Postgres>;
 
 pub async fn connect(s: &str) -> Result<Pool, sqlx::Error> {
     log::debug!("connecting to db at {}", s);

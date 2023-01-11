@@ -1,4 +1,5 @@
 mod analyze;
+mod api;
 mod check_gas;
 mod check_transaction;
 mod cli;
@@ -42,6 +43,7 @@ async fn main() -> Result<()> {
         cli::Commands::Check { txhash, n } => check(config, txhash, n).await,
         cli::Commands::CompareProviders => compare_providers(config).await,
         cli::Commands::CheckGas { txhash, slot } => check_gas(config, txhash, slot).await,
+        cli::Commands::Api => api(config).await,
     }
 }
 
@@ -162,4 +164,8 @@ async fn compare_providers(config: cli::Config) -> Result<()> {
 async fn check_gas(config: cli::Config, tx_hash: String, slot: u64) -> Result<()> {
     let hash = types::TxHash::from_str(tx_hash.as_str())?;
     check_gas::check_gas(config, hash, slot).await
+}
+
+async fn api(config: cli::Config) -> Result<()> {
+    api::serve_api(config).await.wrap_err("api server failed")
 }

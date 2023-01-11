@@ -38,6 +38,8 @@ pub enum Commands {
     CompareProviders,
     /// Print gas information about a transaction and a block.
     CheckGas { txhash: String, slot: u64 },
+    /// Run the REST API server
+    Api,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -63,6 +65,13 @@ pub struct Config {
 
     #[serde(default = "default_nonce_cache_size")]
     pub nonce_cache_size: usize,
+
+    #[serde(default)]
+    pub api_db_connection: String,
+    pub api_host: String,
+    pub api_port: u16,
+    #[serde(default = "default_api_max_response_rows")]
+    pub api_max_response_rows: usize,
 }
 
 impl Config {
@@ -98,4 +107,8 @@ fn default_metrics_endpoint() -> SocketAddr {
 
 fn default_nonce_cache_size() -> usize {
     1000
+}
+
+fn default_api_max_response_rows() -> usize {
+    3
 }
