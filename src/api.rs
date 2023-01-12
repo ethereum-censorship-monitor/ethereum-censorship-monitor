@@ -1,3 +1,5 @@
+use std::cmp::{max, min};
+
 use actix_web::{
     get,
     http::StatusCode,
@@ -25,8 +27,6 @@ pub async fn serve_api(config: Config) -> Result<(), std::io::Error> {
             pool: pool.clone(),
         };
         App::new().app_data(web::Data::new(state)).service(misses)
-        // .service(txs)
-        // .service(blocks)
     })
     .bind(host_and_port)?
     .run()
@@ -48,6 +48,20 @@ pub enum RequestError {
 impl ResponseError for RequestError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct ItemizedResponse<T> {
+    items: Vec<T>,
+    complete: bool,
+}
+
+impl<T> ItemizedResponse<T> {
+    fn new(mut items: Vec<T>, limit: usize) -> Self {
+        let complete = items.len() <= limit;
+        items.truncate(limit);
+        Self { items, complete }
     }
 }
 
@@ -83,6 +97,12 @@ struct MissesArgs {
 async fn misses(data: web::Data<AppState>, q: Query<MissesArgs>) -> Result<impl Responder, Error> {
     let from = from_opt_timestamp(q.from, String::from("from"))?;
     let to = from_opt_timestamp(q.to, String::from("to"))?;
+    let order_ascending = if from.is_none() || to.is_none() {
+        true
+    } else {
+        from.unwrap() <= to.unwrap()
+    };
+    let (tmin, tmax) = ordered_timestamps(from, to);
 
     let block_number = from_opt_nonneg_uint(q.block_number, String::from("block_number"))?;
     let proposer_index = from_opt_nonneg_uint(q.proposer_index, String::from("proposer_index"))?;
@@ -111,67 +131,56 @@ async fn misses(data: web::Data<AppState>, q: Query<MissesArgs>) -> Result<impl 
         FROM
             data.full_miss
         WHERE
-            ($1::timestamp IS NULL OR proposal_time > $1) AND 
+            ($1::timestamp IS NULL OR proposal_time >= $1) AND
             ($2::timestamp IS NULL OR proposal_time <= $2) AND
             ($3::integer IS NULL OR block_number = $3) AND
             ($4::integer IS NULL OR proposer_index = $4) AND
             ($5::char(42) IS NULL OR sender = $5) AND
             ($6::interval IS NULL OR proposal_time - tx_quorum_reached > $6) AND
             ($7::bigint IS NULL OR tip >= $7)
-        LIMIT $8
+        ORDER BY
+            CASE WHEN $8 THEN
+                proposal_time
+            ELSE
+                to_timestamp(0)
+            END ASC,
+            CASE WHEN $8 THEN
+                tx_first_seen
+            ELSE
+                to_timestamp(0)
+            END ASC,
+            CASE WHEN $8 THEN
+                to_timestamp(0)
+            ELSE
+                proposal_time
+            END DESC,
+            CASE WHEN $8 THEN
+                to_timestamp(0)
+            ELSE
+                tx_first_seen
+            END DESC
+        LIMIT $9
         "#,
-        from,
-        to,
+        tmin,
+        tmax,
         block_number,
         proposer_index,
         sender,
         propagation_time,
         min_tip,
-        limit as i64,
+        order_ascending,
+        (limit + 1) as i64,
     )
     .fetch_all(&data.pool)
     .await;
 
-    match result {
-        Ok(misses) => Ok(Json(misses)),
-        Err(e) => {
-            log::error!("error fetching misses from db: {}", e);
-            Err(Error::from(InternalError {}))
-        }
+    if let Err(e) = result {
+        log::error!("error fetching misses from db: {}", e);
+        return Err(Error::from(InternalError {}));
     }
+    let response = ItemizedResponse::new(result.unwrap(), limit);
+    Ok(Json(response))
 }
-
-#[derive(Debug, Serialize)]
-pub struct Tx {
-    tx_hash: String,
-    block_hash: String,
-    block_number: i32,
-    #[serde(with = "ts_seconds")]
-    proposal_time: NaiveDateTime,
-    proposer_index: i32,
-    #[serde(with = "ts_seconds")]
-    tx_first_seen: NaiveDateTime,
-    #[serde(with = "ts_seconds")]
-    tx_quorum_reached: NaiveDateTime,
-    sender: String,
-    tip: Option<i64>,
-}
-
-// #[derive(Deserialize)]
-// struct TxsArgs {}
-
-// #[get("/v0/txs")]
-// async fn txs(q: web::Query<TxsArgs>) -> impl Responder {
-//     HttpResponse::Ok().body("todo")
-// }
-
-// #[derive(Deserialize)]
-// struct BlocksArgs {}
-
-// #[get("/v0/blocks")]
-// async fn blocks(q: web::Query<BlocksArgs>) -> impl Responder {
-//     HttpResponse::Ok().body("todo")
-// }
 
 fn from_opt_timestamp(
     i: Option<i64>,
@@ -226,4 +235,15 @@ where
         return Err(RequestError::ParameterOutOfRange { parameter });
     }
     Ok(i)
+}
+
+fn ordered_timestamps(
+    from: Option<NaiveDateTime>,
+    to: Option<NaiveDateTime>,
+) -> (Option<NaiveDateTime>, Option<NaiveDateTime>) {
+    match (from, to) {
+        (None, _) => (from, to),
+        (_, None) => (from, to),
+        (Some(from), Some(to)) => (Some(min(from, to)), Some(max(from, to))),
+    }
 }
