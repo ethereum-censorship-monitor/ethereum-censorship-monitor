@@ -23,7 +23,7 @@ repos:
         pass_filenames: false
       - id: sqlx-prepare
         name: sqlx-prepare
-        entry: bash -c 'cd monitor; cargo sqlx prepare'
+        entry: bash -c 'cargo sqlx prepare'
         language: system
         files: ^migrations/.*\.sql$|^sqlx-data\.json$
         pass_filenames: false
