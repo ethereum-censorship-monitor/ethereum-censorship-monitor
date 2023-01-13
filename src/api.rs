@@ -6,7 +6,10 @@ use actix_web::{
     web::{self, Json, Query},
     App, Error, HttpServer, Responder, ResponseError, Result,
 };
-use chrono::{naive::serde::ts_seconds, Duration, NaiveDateTime};
+use chrono::{
+    naive::serde::{ts_seconds, ts_seconds_option},
+    Duration, NaiveDateTime,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::types::PgInterval;
 use thiserror::Error;
@@ -26,7 +29,10 @@ pub async fn serve_api(config: Config) -> Result<(), std::io::Error> {
             config: config.clone(),
             pool: pool.clone(),
         };
-        App::new().app_data(web::Data::new(state)).service(misses)
+        App::new()
+            .app_data(web::Data::new(state))
+            .service(misses)
+            .service(txs)
     })
     .bind(host_and_port)?
     .run()
@@ -176,6 +182,135 @@ async fn misses(data: web::Data<AppState>, q: Query<MissesArgs>) -> Result<impl 
 
     if let Err(e) = result {
         log::error!("error fetching misses from db: {}", e);
+        return Err(Error::from(InternalError {}));
+    }
+    let response = ItemizedResponse::new(result.unwrap(), limit);
+    Ok(Json(response))
+}
+
+#[derive(Debug, Serialize)]
+pub struct Tx {
+    tx_hash: String,
+    #[serde(with = "ts_seconds_option")]
+    tx_first_seen: Option<NaiveDateTime>,
+    #[serde(with = "ts_seconds_option")]
+    tx_quorum_reached: Option<NaiveDateTime>,
+    sender: Option<String>,
+    num_misses: Option<i64>,
+}
+
+#[derive(Deserialize)]
+struct TxsArgs {
+    from: Option<i64>,
+    to: Option<i64>,
+    block_number: Option<i32>,
+    proposer_index: Option<i32>,
+    sender: Option<String>,
+    propagation_time: Option<i64>,
+    min_tip: Option<i64>,
+    min_num_misses: Option<i32>,
+}
+
+#[get("/v0/txs")]
+async fn txs(data: web::Data<AppState>, q: Query<TxsArgs>) -> Result<impl Responder, Error> {
+    let from = from_opt_timestamp(q.from, String::from("from"))?;
+    let to = from_opt_timestamp(q.to, String::from("to"))?;
+    let order_ascending = if from.is_none() || to.is_none() {
+        true
+    } else {
+        from.unwrap() <= to.unwrap()
+    };
+    let (tmin, tmax) = ordered_timestamps(from, to);
+
+    let block_number = from_opt_nonneg_uint(q.block_number, String::from("block_number"))?;
+    let proposer_index = from_opt_nonneg_uint(q.proposer_index, String::from("proposer_index"))?;
+    let sender = q.sender.clone();
+
+    let propagation_time = from_opt_interval(q.propagation_time, String::from("propagation_time"))?;
+
+    let min_tip = from_opt_nonneg_uint(q.min_tip, String::from("min_tip"))?;
+
+    let limit = data.config.api_max_response_rows;
+
+    let min_num_misses = from_opt_nonneg_uint(q.min_num_misses, String::from("min_num_misses"))?;
+
+    let result = sqlx::query_as!(
+        Tx,
+        r#"
+        SELECT
+            *
+        FROM (
+            SELECT
+                tx.tx_hash AS tx_hash,
+                min(tx.tx_first_seen) AS tx_first_seen,
+                min(full_miss.tx_quorum_reached) AS tx_quorum_reached,
+                min(full_miss.sender) AS sender,
+                COALESCE(count(full_miss.block_hash), 0) AS num_misses
+            FROM (
+                SELECT
+                    tx_hash,
+                    proposal_time,
+                    block_number,
+                    tx_first_seen,
+                    tx_quorum_reached,
+                    sender
+                FROM
+                    data.full_miss
+                WHERE
+                    ($1::timestamp IS NULL OR proposal_time >= $1) AND
+                    ($2::timestamp IS NULL OR proposal_time <= $2) AND
+                    ($3::integer IS NULL OR block_number = $3) AND
+                    ($4::integer IS NULL OR proposer_index = $4) AND
+                    ($5::char(42) IS NULL OR sender = $5) AND
+                    ($6::interval IS NULL OR proposal_time - tx_quorum_reached > $6) AND
+                    ($7::bigint IS NULL OR tip >= $7)
+                ORDER BY
+                    CASE WHEN $8 THEN
+                        proposal_time
+                    ELSE
+                        to_timestamp(0)
+                    END ASC,
+                    CASE WHEN $8 THEN
+                        tx_first_seen
+                    ELSE
+                        to_timestamp(0)
+                    END ASC,
+                    CASE WHEN $8 THEN
+                        to_timestamp(0)
+                    ELSE
+                        proposal_time
+                    END DESC,
+                    CASE WHEN $8 THEN
+                        to_timestamp(0)
+                    ELSE
+                        tx_first_seen
+                    END DESC
+                LIMIT $9
+            ) AS tx
+            INNER JOIN data.full_miss ON full_miss.tx_hash = tx.tx_hash
+            WHERE
+                ($6::interval IS NULL OR full_miss.proposal_time - full_miss.tx_quorum_reached > $6) AND
+                ($7::bigint IS NULL OR full_miss.tip >= $7)
+            GROUP BY tx.tx_hash
+        ) AS tx
+        WHERE ($10::integer IS NULL OR num_misses >= $10)
+        "#,
+        tmin,
+        tmax,
+        block_number,
+        proposer_index,
+        sender,
+        propagation_time,
+        min_tip,
+        order_ascending,
+        (limit + 1) as i64,
+        min_num_misses
+    )
+    .fetch_all(&data.pool)
+    .await;
+
+    if let Err(e) = result {
+        log::error!("error fetching txs from db: {}", e);
         return Err(Error::from(InternalError {}));
     }
     let response = ItemizedResponse::new(result.unwrap(), limit);

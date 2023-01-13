@@ -1,5 +1,140 @@
 {
   "db": "PostgreSQL",
+  "07c096fe574b6b9ecafddfc32d9ce11eaf6ff7af61539546d1ddb9b265bb2e70": {
+    "describe": {
+      "columns": [
+        {
+          "name": "tx_hash",
+          "ordinal": 0,
+          "type_info": "Bpchar"
+        },
+        {
+          "name": "tx_first_seen",
+          "ordinal": 1,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "tx_quorum_reached",
+          "ordinal": 2,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "sender",
+          "ordinal": 3,
+          "type_info": "Bpchar"
+        },
+        {
+          "name": "num_misses",
+          "ordinal": 4,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false,
+        null,
+        null,
+        null,
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Timestamp",
+          "Timestamp",
+          "Int4",
+          "Int4",
+          "Bpchar",
+          "Interval",
+          "Int8",
+          "Bool",
+          "Int8",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n        SELECT\n            *\n        FROM (\n            SELECT\n                tx.tx_hash AS tx_hash,\n                min(tx.tx_first_seen) AS tx_first_seen,\n                min(full_miss.tx_quorum_reached) AS tx_quorum_reached,\n                min(full_miss.sender) AS sender,\n                COALESCE(count(full_miss.block_hash), 0) AS num_misses\n            FROM (\n                SELECT\n                    tx_hash,\n                    proposal_time,\n                    block_number,\n                    tx_first_seen,\n                    tx_quorum_reached,\n                    sender\n                FROM\n                    data.full_miss\n                WHERE\n                    ($1::timestamp IS NULL OR proposal_time >= $1) AND\n                    ($2::timestamp IS NULL OR proposal_time <= $2) AND\n                    ($3::integer IS NULL OR block_number = $3) AND\n                    ($4::integer IS NULL OR proposer_index = $4) AND\n                    ($5::char(42) IS NULL OR sender = $5) AND\n                    ($6::interval IS NULL OR proposal_time - tx_quorum_reached > $6) AND\n                    ($7::bigint IS NULL OR tip >= $7)\n                ORDER BY\n                    CASE WHEN $8 THEN\n                        proposal_time\n                    ELSE\n                        to_timestamp(0)\n                    END ASC,\n                    CASE WHEN $8 THEN\n                        tx_first_seen\n                    ELSE\n                        to_timestamp(0)\n                    END ASC,\n                    CASE WHEN $8 THEN\n                        to_timestamp(0)\n                    ELSE\n                        proposal_time\n                    END DESC,\n                    CASE WHEN $8 THEN\n                        to_timestamp(0)\n                    ELSE\n                        tx_first_seen\n                    END DESC\n                LIMIT $9\n            ) AS tx\n            INNER JOIN data.full_miss ON full_miss.tx_hash = tx.tx_hash\n            WHERE\n                ($6::interval IS NULL OR full_miss.proposal_time - full_miss.tx_quorum_reached > $6) AND\n                ($7::bigint IS NULL OR full_miss.tip >= $7)\n            GROUP BY tx.tx_hash\n        ) AS tx\n        WHERE ($10::integer IS NULL OR num_misses >= $10)\n        "
+  },
+  "26a5b1b38b6db0e7c2a9b40ca4e74149eecf74419b2551ad5d98344cb4038e8e": {
+    "describe": {
+      "columns": [
+        {
+          "name": "tx_hash",
+          "ordinal": 0,
+          "type_info": "Bpchar"
+        },
+        {
+          "name": "block_hash",
+          "ordinal": 1,
+          "type_info": "Bpchar"
+        },
+        {
+          "name": "slot",
+          "ordinal": 2,
+          "type_info": "Int4"
+        },
+        {
+          "name": "block_number",
+          "ordinal": 3,
+          "type_info": "Int4"
+        },
+        {
+          "name": "proposal_time",
+          "ordinal": 4,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "proposer_index",
+          "ordinal": 5,
+          "type_info": "Int4"
+        },
+        {
+          "name": "tx_first_seen",
+          "ordinal": 6,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "tx_quorum_reached",
+          "ordinal": 7,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "sender",
+          "ordinal": 8,
+          "type_info": "Bpchar"
+        },
+        {
+          "name": "tip",
+          "ordinal": 9,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Timestamp",
+          "Timestamp",
+          "Int4",
+          "Int4",
+          "Bpchar",
+          "Interval",
+          "Int8",
+          "Bool",
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n        SELECT\n            tx_hash,\n            block_hash,\n            slot,\n            block_number,\n            proposal_time,\n            proposer_index,\n            tx_first_seen,\n            tx_quorum_reached,\n            sender,\n            tip\n        FROM\n            data.full_miss\n        WHERE\n            ($1::timestamp IS NULL OR proposal_time >= $1) AND\n            ($2::timestamp IS NULL OR proposal_time <= $2) AND\n            ($3::integer IS NULL OR block_number = $3) AND\n            ($4::integer IS NULL OR proposer_index = $4) AND\n            ($5::char(42) IS NULL OR sender = $5) AND\n            ($6::interval IS NULL OR proposal_time - tx_quorum_reached > $6) AND\n            ($7::bigint IS NULL OR tip >= $7)\n        ORDER BY\n            CASE WHEN $8 THEN\n                proposal_time\n            ELSE\n                to_timestamp(0)\n            END ASC,\n            CASE WHEN $8 THEN\n                tx_first_seen\n            ELSE\n                to_timestamp(0)\n            END ASC,\n            CASE WHEN $8 THEN\n                to_timestamp(0)\n            ELSE\n                proposal_time\n            END DESC,\n            CASE WHEN $8 THEN\n                to_timestamp(0)\n            ELSE\n                tx_first_seen\n            END DESC\n        LIMIT $9\n        "
+  },
   "8b9c5ca1e78042d506d4db56ba1c3b1c732cc725e4777d724b8a9200e4c7b0ad": {
     "describe": {
       "columns": [],
