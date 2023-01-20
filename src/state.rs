@@ -21,6 +21,7 @@ pub struct State {
     analysis_queue: Vec<BeaconBlock<Transaction>>,
 
     quorum: usize,
+    propagation_time: chrono::Duration,
 }
 
 impl State {
@@ -40,6 +41,7 @@ impl State {
             analysis_queue: Vec::new(),
 
             quorum: node_config.execution_ws_urls.len(),
+            propagation_time: chrono::Duration::seconds(config.propagation_time),
         }
     }
 
@@ -143,7 +145,14 @@ impl State {
             }
         }
 
-        let analysis = analyze(beacon_block, &self.pool, &mut self.nonce_cache, self.quorum).await;
+        let analysis = analyze(
+            beacon_block,
+            &self.pool,
+            &mut self.nonce_cache,
+            self.quorum,
+            self.propagation_time,
+        )
+        .await;
         match analysis {
             Ok(a) => Some(a),
             Err(e) => {

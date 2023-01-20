@@ -15,6 +15,8 @@ metrics_endpoint = "127.0.0.1:8080"
 
 nonce_cache_size = 1000
 
+propagation_time = 8
+
 api_host = "127.0.0.1"
 api_port = 8080
 api_db_connection = "postgres://postgres@localhost:5432/monitor"

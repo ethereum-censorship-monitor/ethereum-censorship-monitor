@@ -228,6 +228,7 @@ pub struct Analysis {
     pub num_txs_in_block: usize,
     pub num_txs_in_pool: usize,
     pub num_quorum_not_reached: usize,
+    pub num_still_propagating: usize,
     pub num_only_tx_hash: usize,
     pub num_replaced_txs: usize,
     pub non_inclusion_reasons: HashMap<NonInclusionReason, usize>,
@@ -248,15 +249,17 @@ impl Analysis {
         format!(
             "Analysis for block {beacon_block}: {included} txs from pool included, {missing} \
              missed, {in_pool} in pool, {in_block} in block, {quorum_not_reached} quorum not \
-             reached, {only_hash} only hash known, {replaced} replaced, {nonce_mismatch} nonce \
-             mismatch, {not_enough_space} not enough space, {base_fee_too_low} base fee too low, \
-             {tip_too_low} tip too low, took {duration:.1}s",
+             reached, {still_propagating} still propagating, {only_hash} only hash known, \
+             {replaced} replaced, {nonce_mismatch} nonce mismatch, {not_enough_space} not enough \
+             space, {base_fee_too_low} base fee too low, {tip_too_low} tip too low, took \
+             {duration:.1}s",
             beacon_block = self.beacon_block,
             included = self.included_transactions.len(),
             missing = self.missing_transactions.len(),
             in_pool = self.num_txs_in_pool,
             in_block = self.num_txs_in_block,
             quorum_not_reached = self.num_quorum_not_reached,
+            still_propagating = self.num_still_propagating,
             only_hash = self.num_only_tx_hash,
             replaced = self.num_replaced_txs,
             nonce_mismatch = self
@@ -285,6 +288,7 @@ pub async fn analyze(
     pool: &Pool,
     nonce_cache: &mut NonceCache,
     quorum: usize,
+    propagation_time: chrono::Duration,
 ) -> Result<Analysis, NonceCacheError> {
     let start_time = Instant::now();
 
@@ -302,6 +306,7 @@ pub async fn analyze(
     let mut included_txs = HashMap::new();
     let mut num_only_tx_hash = 0;
     let mut num_quorum_not_reached = 0;
+    let mut num_still_propagating = 0;
     let mut num_replaced_txs = 0;
     let mut missing_txs = HashMap::new();
     let mut non_inclusion_reasons = HashMap::new();
@@ -313,6 +318,16 @@ pub async fn analyze(
         }
         if obs_tx.num_nodes_seen(proposal_time) < quorum {
             num_quorum_not_reached += 1;
+            continue;
+        }
+        let first_seen = obs_tx
+            .quorum_reached_timestamp(1)
+            .expect("quorum has been reached");
+        let quorum_reached = obs_tx
+            .quorum_reached_timestamp(quorum)
+            .expect("quorum has been reached");
+        if beacon_block.proposal_time() - quorum_reached <= propagation_time {
+            num_still_propagating += 1;
             continue;
         }
         if obs_tx.transaction.is_none() {
@@ -330,12 +345,6 @@ pub async fn analyze(
             Ok(None) => {
                 if obs_tx.transaction.is_none() {
                     log::error!("transaction without body failed inclusion checks");
-                    continue;
-                }
-                let first_seen = obs_tx.quorum_reached_timestamp(1);
-                let quorum_reached = obs_tx.quorum_reached_timestamp(quorum);
-                if first_seen.is_none() || quorum_reached.is_none() {
-                    log::error!("transaction without quorum failed inclusion checks");
                     continue;
                 }
                 let tx = obs_tx.transaction.unwrap();
@@ -356,8 +365,8 @@ pub async fn analyze(
                 let missed_tx = MissedTransaction {
                     hash: obs_tx.hash,
                     transaction: tx,
-                    first_seen: first_seen.unwrap(),
-                    quorum_reached: quorum_reached.unwrap(),
+                    first_seen,
+                    quorum_reached,
                     tip,
                 };
                 missing_txs.insert(hash, missed_tx);
@@ -382,6 +391,7 @@ pub async fn analyze(
     metrics::ANALYZED_TRANSACTIONS.inc_by(num_txs_in_pool as u64);
     metrics::INCLUDED_TRANSACTIONS.inc_by(included_txs.len() as u64);
     metrics::QUORUM_NOT_REACHED_TRANSACTIONS.inc_by(num_quorum_not_reached as u64);
+    metrics::STILL_PROPAGATING_TRANSACTIONS.inc_by(num_still_propagating as u64);
     metrics::ONLY_HASH_TRANSACTIONS.inc_by(num_only_tx_hash as u64);
     metrics::REPLACED_TRANSACTIONS.inc_by(num_replaced_txs as u64);
     metrics::NOT_ENOUGH_SPACE_TRANSACTIONS.inc_by(
@@ -413,6 +423,7 @@ pub async fn analyze(
         included_transactions: included_txs,
         num_txs_in_block,
         num_quorum_not_reached,
+        num_still_propagating,
         num_txs_in_pool,
         num_only_tx_hash,
         num_replaced_txs,

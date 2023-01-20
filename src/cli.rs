@@ -66,6 +66,9 @@ pub struct Config {
     #[serde(default = "default_nonce_cache_size")]
     pub nonce_cache_size: usize,
 
+    #[serde(default = "default_propagation_time")]
+    pub propagation_time: i64,
+
     #[serde(default)]
     pub api_db_connection: String,
     pub api_host: String,
@@ -109,6 +112,10 @@ fn default_nonce_cache_size() -> usize {
     1000
 }
 
+fn default_propagation_time() -> i64 {
+    0
+}
+
 fn default_api_max_response_rows() -> usize {
-    3
+    100
 }

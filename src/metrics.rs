@@ -53,6 +53,11 @@ lazy_static! {
         "Analyzed transactions that didn't reach quorum"
     )
     .expect("can create metric");
+    pub static ref STILL_PROPAGATING_TRANSACTIONS: IntCounter = register_int_counter!(
+        "still_propagating_transactions",
+        "Analyzed transactions that may still be propagating"
+    )
+    .expect("can create metric");
     pub static ref ONLY_HASH_TRANSACTIONS: IntCounter = register_int_counter!(
         "only_hash_transactions",
         "Analyzed transactions of which only their hash is known"
