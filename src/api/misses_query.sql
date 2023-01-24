@@ -18,7 +18,8 @@ SELECT
     tx_first_seen,
     tx_quorum_reached,
     sender,
-    tip
+    tip,
+    proposal_time AS ref_time
 FROM
     data.full_miss
 WHERE
@@ -36,7 +37,7 @@ ORDER BY
         to_timestamp(0)
     END ASC,
     CASE WHEN $8 THEN
-        tx_first_seen
+        tx_quorum_reached
     ELSE
         to_timestamp(0)
     END ASC,
@@ -48,6 +49,6 @@ ORDER BY
     CASE WHEN $8 THEN
         to_timestamp(0)
     ELSE
-        tx_first_seen
+        tx_quorum_reached
     END DESC
 LIMIT $9;
