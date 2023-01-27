@@ -31,22 +31,30 @@ pub struct GroupedMissArgs {
 }
 
 impl MissArgs {
-    pub fn checked_from(&self) -> Result<Option<NaiveDateTime>, RequestError> {
-        from_opt_timestamp(self.from, String::from("from"))
+    pub fn checked_from(&self) -> Result<NaiveDateTime, RequestError> {
+        let t = from_opt_timestamp(self.from, String::from("from"))?;
+        Ok(t.unwrap_or_else(|| NaiveDateTime::from_timestamp_opt(0, 0).unwrap()))
     }
 
-    pub fn checked_to(&self) -> Result<Option<NaiveDateTime>, RequestError> {
-        from_opt_timestamp(self.to, String::from("to"))
+    pub fn checked_to(&self, request_time: NaiveDateTime) -> Result<NaiveDateTime, RequestError> {
+        let t = from_opt_timestamp(self.to, String::from("to"))?;
+        Ok(t.unwrap_or(request_time))
     }
 
     pub fn checked_time_range(
         &self,
-    ) -> Result<(Option<NaiveDateTime>, Option<NaiveDateTime>), RequestError> {
-        Ok(ordered_timestamps(self.checked_from()?, self.checked_to()?))
+        request_time: NaiveDateTime,
+    ) -> Result<(NaiveDateTime, NaiveDateTime), RequestError> {
+        let from = self.checked_from()?;
+        let to = self.checked_to(request_time)?;
+        Ok((min(from, to), max(from, to)))
     }
 
-    pub fn checked_is_order_ascending(&self) -> Result<bool, RequestError> {
-        Ok(is_order_ascending(self.checked_from()?, self.checked_to()?))
+    pub fn checked_is_order_ascending(
+        &self,
+        request_time: NaiveDateTime,
+    ) -> Result<bool, RequestError> {
+        Ok(self.checked_from()? <= self.checked_to(request_time)?)
     }
 
     pub fn checked_block_number(&self) -> Result<Option<i32>, RequestError> {
@@ -143,23 +151,4 @@ where
         return Err(RequestError::ParameterOutOfRange { parameter });
     }
     Ok(i)
-}
-
-fn ordered_timestamps(
-    from: Option<NaiveDateTime>,
-    to: Option<NaiveDateTime>,
-) -> (Option<NaiveDateTime>, Option<NaiveDateTime>) {
-    match (from, to) {
-        (None, _) => (from, to),
-        (_, None) => (from, to),
-        (Some(from), Some(to)) => (Some(min(from, to)), Some(max(from, to))),
-    }
-}
-
-fn is_order_ascending(t1: Option<NaiveDateTime>, t2: Option<NaiveDateTime>) -> bool {
-    match (t1, t2) {
-        (None, _) => true,
-        (_, None) => true,
-        (Some(from), Some(to)) => from <= to,
-    }
 }

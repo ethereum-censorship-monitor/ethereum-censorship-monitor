@@ -1,10 +1,9 @@
-use actix_web::{Error, Result};
+use actix_web::{web, Error, Result};
 use chrono::{naive::serde::ts_seconds, NaiveDateTime};
 use serde::Serialize;
 use sqlx::types::JsonValue;
 
-use super::{requests::GroupedMissArgs, InternalError, MissArgs, ResponseItem};
-use crate::db;
+use super::{requests::GroupedMissArgs, AppState, InternalError, MissArgs, ResponseItem};
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Miss {
@@ -25,22 +24,20 @@ pub struct Miss {
     pub ref_time: NaiveDateTime,
 }
 
-pub async fn query_misses(
-    args: &MissArgs,
-    pool: &db::Pool,
-    limit: usize,
-) -> Result<Vec<Miss>, Error> {
+pub async fn query_misses(args: &MissArgs, data: &web::Data<AppState>) -> Result<Vec<Miss>, Error> {
+    let pool = &data.pool;
+    let limit = data.config.api_max_response_rows;
     let result = sqlx::query_file_as!(
         Miss,
         "src/api/misses_query.sql",
-        args.checked_time_range()?.0,
-        args.checked_time_range()?.1,
+        args.checked_time_range(data.request_time)?.0,
+        args.checked_time_range(data.request_time)?.1,
         args.checked_block_number()?,
         args.checked_proposer_index()?,
         args.checked_sender()?,
         args.checked_propagation_time()?,
         args.checked_min_tip()?,
-        args.checked_is_order_ascending()?,
+        args.checked_is_order_ascending(data.request_time)?,
         (limit + 1) as i64,
     )
     .fetch_all(pool)
@@ -71,21 +68,22 @@ pub struct Tx {
 
 pub async fn query_txs(
     args: &GroupedMissArgs,
-    pool: &db::Pool,
-    limit: usize,
+    data: &web::Data<AppState>,
 ) -> Result<Vec<Tx>, Error> {
+    let pool = &data.pool;
+    let limit = data.config.api_max_response_rows;
     let miss_args: MissArgs = args.clone().into();
     let result = sqlx::query_file_as!(
         Tx,
         "src/api/txs_query.sql",
-        miss_args.checked_time_range()?.0,
-        miss_args.checked_time_range()?.1,
+        miss_args.checked_time_range(data.request_time)?.0,
+        miss_args.checked_time_range(data.request_time)?.1,
         miss_args.checked_block_number()?,
         miss_args.checked_proposer_index()?,
         miss_args.checked_sender()?,
         miss_args.checked_propagation_time()?,
         miss_args.checked_min_tip()?,
-        miss_args.checked_is_order_ascending()?,
+        miss_args.checked_is_order_ascending(data.request_time)?,
         (limit + 1) as i64,
     )
     .fetch_all(pool)
@@ -116,21 +114,22 @@ pub struct Block {
 
 pub async fn query_blocks(
     args: &GroupedMissArgs,
-    pool: &db::Pool,
-    limit: usize,
+    data: &web::Data<AppState>,
 ) -> Result<Vec<Block>, Error> {
+    let pool = &data.pool;
+    let limit = data.config.api_max_response_rows;
     let miss_args: MissArgs = args.clone().into();
     let result = sqlx::query_file_as!(
         Block,
         "src/api/blocks_query.sql",
-        miss_args.checked_time_range()?.0,
-        miss_args.checked_time_range()?.1,
+        miss_args.checked_time_range(data.request_time)?.0,
+        miss_args.checked_time_range(data.request_time)?.1,
         miss_args.checked_block_number()?,
         miss_args.checked_proposer_index()?,
         miss_args.checked_sender()?,
         miss_args.checked_propagation_time()?,
         miss_args.checked_min_tip()?,
-        miss_args.checked_is_order_ascending()?,
+        miss_args.checked_is_order_ascending(data.request_time)?,
         (limit + 1) as i64,
     )
     .fetch_all(pool)

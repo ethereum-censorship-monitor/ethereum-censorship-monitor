@@ -1,28 +1,35 @@
-use chrono::{naive::serde::ts_seconds_option, NaiveDateTime};
+use chrono::{naive::serde::ts_seconds, NaiveDateTime};
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 pub struct ItemizedResponse<T> {
     items: Vec<T>,
-    #[serde(with = "ts_seconds_option")]
-    from: Option<NaiveDateTime>,
-    #[serde(with = "ts_seconds_option")]
-    to: Option<NaiveDateTime>,
+    complete: bool,
+    #[serde(with = "ts_seconds")]
+    from: NaiveDateTime,
+    #[serde(with = "ts_seconds")]
+    to: NaiveDateTime,
 }
 
 impl<T> ItemizedResponse<T> {
     pub fn new(
         items: Vec<T>,
-        data_range: Option<(NaiveDateTime, NaiveDateTime)>,
-        query_from: Option<NaiveDateTime>,
-        query_to: Option<NaiveDateTime>,
+        complete: bool,
+        query_from: NaiveDateTime,
+        query_to: NaiveDateTime,
+        data_to: Option<NaiveDateTime>,
     ) -> Self {
-        let (from, to) = if let Some((from, to)) = data_range {
-            (Some(from), Some(to))
+        let to = if complete {
+            query_to
         } else {
-            (query_from, query_to)
+            data_to.unwrap_or(query_to)
         };
-        Self { items, from, to }
+        Self {
+            items,
+            complete,
+            from: query_from,
+            to,
+        }
     }
 }
 
@@ -30,13 +37,10 @@ pub trait ResponseItem {
     fn get_ref_time(&self) -> NaiveDateTime;
 }
 
-pub fn get_time_range<T: ResponseItem>(misses: &Vec<T>) -> Option<(NaiveDateTime, NaiveDateTime)> {
-    if misses.is_empty() {
+pub fn get_last_ref_time<T: ResponseItem>(items: &Vec<T>) -> Option<NaiveDateTime> {
+    if items.is_empty() {
         None
     } else {
-        Some((
-            misses[0].get_ref_time(),
-            misses[misses.len() - 1].get_ref_time(),
-        ))
+        Some(items[items.len() - 1].get_ref_time())
     }
 }
