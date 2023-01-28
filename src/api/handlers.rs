@@ -57,8 +57,14 @@ pub async fn handle_blocks(
     data: web::Data<AppState>,
     q: Query<GroupedMissArgs>,
 ) -> Result<impl Responder, Error> {
-    let blocks = query_blocks(&q.0, &data).await?;
-    let complete = blocks.len() <= data.config.api_max_response_rows;
+    let mut blocks = query_blocks(&q.0, &data).await?;
+    let num_original_rows = blocks.iter().map(|b| b.ref_row_number).max().unwrap_or(0) as usize;
+    let complete = if num_original_rows <= data.config.api_max_response_rows {
+        true
+    } else {
+        blocks.retain(|b| (b.ref_row_number as usize) < num_original_rows);
+        false
+    };
     let last_time = get_last_ref_time(&blocks);
     let min_num_misses = q.checked_min_num_misses()?;
     let filtered_blocks = blocks

@@ -110,6 +110,8 @@ pub struct Block {
     pub txs: JsonValue,
     #[serde(skip_serializing)]
     pub ref_time: NaiveDateTime,
+    #[serde(skip_serializing)]
+    pub ref_row_number: i64,
 }
 
 pub async fn query_blocks(
