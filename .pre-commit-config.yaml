@@ -25,7 +25,7 @@ repos:
         name: sqlx-prepare
         entry: bash -c 'cargo sqlx prepare'
         language: system
-        files: ^migrations/.*\.sql$|^sqlx-data\.json$
+        files: ^migrations/.*\.sql$|^sqlx-data\.json|^src/.*\.sql$
         pass_filenames: false
 
   - repo: https://github.com/pre-commit/mirrors-prettier
