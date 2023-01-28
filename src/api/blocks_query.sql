@@ -18,8 +18,8 @@ SELECT
     count(tx_hash) AS "num_misses!",
     json_agg(json_build_object(
         'tx_hash', tx_hash,
-        'tx_first_seen', tx_first_seen,
-        'tx_quorum_reached', tx_quorum_reached,
+        'tx_first_seen', floor(extract(epoch from tx_first_seen)),
+        'tx_quorum_reached', floor(extract(epoch from tx_quorum_reached)),
         'sender', sender,
         'tip', tip
     )) AS "txs!"

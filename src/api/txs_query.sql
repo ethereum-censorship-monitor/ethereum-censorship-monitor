@@ -18,7 +18,7 @@ SELECT
     json_agg(json_build_object(
         'block_hash', block_hash,
         'slot', slot,
-        'proposal_time', proposal_time,
+        'proposal_time', floor(extract(epoch from proposal_time)),
         'block_number', block_number,
         'proposer_index', proposer_index,
         'tip', tip
