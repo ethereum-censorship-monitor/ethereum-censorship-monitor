@@ -43,7 +43,7 @@ pub async fn check_transaction(
 
     let block_numbers = (block_number - num_blocks as u64 - 1..block_number - 1).rev();
     for (i, n) in block_numbers.enumerate() {
-        println!("Inclusion check in block {}:", n);
+        println!("Inclusion check in block {n}:");
         check_transaction_in_block(
             &transaction,
             n,
@@ -81,11 +81,11 @@ pub async fn check_transaction_in_block(
     let tip_too_low = check_tip_too_low(transaction, exec)?;
     let nonce_mismatch = check_nonce_mismatch(transaction, &beacon_block, nonce_cache).await?;
 
-    println!("  replaced by others: {}", replaced);
-    println!("    not enough space: {}", not_enough_space);
-    println!("    base fee too low: {}", base_fee_too_low);
-    println!("         tip too low: {}", tip_too_low);
-    println!("      nonce mismatch: {}", nonce_mismatch);
+    println!("  replaced by others: {replaced}");
+    println!("    not enough space: {not_enough_space}");
+    println!("    base fee too low: {base_fee_too_low}");
+    println!("         tip too low: {tip_too_low}");
+    println!("      nonce mismatch: {nonce_mismatch}");
 
     Ok(())
 }

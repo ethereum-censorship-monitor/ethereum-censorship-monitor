@@ -38,15 +38,15 @@ pub async fn check_gas(config: Config, tx_hash: TxHash, slot: u64) -> Result<()>
         format!("{:.2}gwei", i.as_u64() as f64 / 1_000_000_000.)
     }
 
-    println!("         tx type: {}", tx_type);
+    println!("         tx type: {tx_type}");
     println!("  block base fee: {}", gwei(block_base_fee));
     println!("     tx base fee: {}", gwei(tx_base_fee));
     println!("   block min tip: {}", gwei(min_tip));
     println!("block median tip: {}", gwei(median_tip));
     println!("          tx tip: {}", gwei(tx_tip));
-    println!(" block gas limit: {}", block_gas_limit);
-    println!("  block gas used: {}", block_gas_used);
+    println!(" block gas limit: {block_gas_limit}");
+    println!("  block gas used: {block_gas_used}");
     println!("block unused gas: {}", block_gas_limit - block_gas_used);
-    println!("    tx gas limit: {}", tx_gas_limit);
+    println!("    tx gas limit: {tx_gas_limit}");
     Ok(())
 }
