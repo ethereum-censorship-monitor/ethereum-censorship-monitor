@@ -14,6 +14,7 @@ SELECT
     min(tx_quorum_reached) AS "tx_quorum_reached!",
     min(sender) AS "sender!",
     min(ref_time) AS "ref_time!",
+    max(ref_row_number) AS "ref_row_number!",
     count(block_hash) AS "num_misses!",
     json_agg(json_build_object(
         'block_hash', block_hash,
@@ -36,13 +37,15 @@ FROM (
         joined_miss.tx_quorum_reached AS tx_quorum_reached,
         joined_miss.sender AS sender,
         joined_miss.tip AS tip,
-        ref_miss.proposal_time AS ref_time
+        ref_miss.proposal_time AS ref_time,
+        ref_miss.row_number AS ref_row_number
     FROM (
         SELECT
             tx_hash,
             block_hash,
             proposal_time,
-            tx_quorum_reached
+            tx_quorum_reached,
+            ROW_NUMBER () OVER () AS row_number
         FROM
             data.full_miss
         WHERE

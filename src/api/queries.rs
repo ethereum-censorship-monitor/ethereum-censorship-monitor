@@ -64,6 +64,8 @@ pub struct Tx {
     pub num_misses: i64,
     #[serde(skip_serializing)]
     pub ref_time: NaiveDateTime,
+    #[serde(skip_serializing)]
+    pub ref_row_number: i64,
 }
 
 pub async fn query_txs(

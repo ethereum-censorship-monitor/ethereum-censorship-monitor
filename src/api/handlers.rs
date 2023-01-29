@@ -32,8 +32,14 @@ pub async fn handle_txs(
     data: web::Data<AppState>,
     q: Query<GroupedMissArgs>,
 ) -> Result<impl Responder, Error> {
-    let txs = query_txs(&q.0, &data).await?;
-    let complete = txs.len() <= data.config.api_max_response_rows;
+    let mut txs = query_txs(&q.0, &data).await?;
+    let num_original_rows = txs.iter().map(|b| b.ref_row_number).max().unwrap_or(0) as usize;
+    let complete = if num_original_rows <= data.config.api_max_response_rows {
+        true
+    } else {
+        txs.retain(|b| (b.ref_row_number as usize) < num_original_rows);
+        false
+    };
     let last_time = get_last_ref_time(&txs);
     let min_num_misses = q.checked_min_num_misses()?;
     let filtered_txs = txs
