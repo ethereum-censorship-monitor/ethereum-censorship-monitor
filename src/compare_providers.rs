@@ -20,7 +20,7 @@ pub async fn compare_providers(config: &cli::Config) -> Result<()> {
     let node_config = NodeConfig::from(config);
 
     for (i, url) in node_config.execution_ws_urls.iter().enumerate() {
-        println!("{}: {}", i, url);
+        println!("{i}: {url}");
     }
     println!();
 
@@ -31,7 +31,7 @@ pub async fn compare_providers(config: &cli::Config) -> Result<()> {
         for combination in (0..n).combinations(k) {
             let parts = combination.iter().map(|i| i.to_string()).clone();
             let s: String = itertools::Itertools::intersperse(parts, String::from("|")).collect();
-            print!("{:>13}", s);
+            print!("{s:>13}");
         }
     }
     println!();

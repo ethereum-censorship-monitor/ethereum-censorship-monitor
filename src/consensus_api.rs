@@ -57,7 +57,7 @@ impl ConsensusProvider {
     ) -> Result<BeaconBlockWithoutRoot<Transaction>, ConsensusAPIError> {
         let url = url_with_path(
             &self.http_url,
-            format!("/eth/v2/beacon/blocks/{}", path).as_str(),
+            format!("/eth/v2/beacon/blocks/{path}").as_str(),
         );
 
         let r = reqwest::get(url)
@@ -90,7 +90,7 @@ impl ConsensusProvider {
         for s in tx_strings {
             let b = hex::decode(s.strip_prefix("0x").unwrap_or(s.as_str())).map_err(|e| {
                 ConsensusAPIError::UnexpectedResponse {
-                    description: format!("error decoding tx in block: {}", e),
+                    description: format!("error decoding tx in block: {e}"),
                 }
             })?;
             let tx = Transaction::decode(&rlp::Rlp::new(b.as_slice()));
