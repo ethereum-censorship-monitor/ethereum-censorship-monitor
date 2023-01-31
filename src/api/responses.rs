@@ -1,23 +1,24 @@
-use chrono::{naive::serde::ts_seconds, NaiveDateTime};
 use serde::Serialize;
+
+use super::{miss_time_tuple::serde_miss_time_tuple, MissTimeTuple};
 
 #[derive(Debug, Serialize)]
 pub struct ItemizedResponse<T> {
     items: Vec<T>,
     complete: bool,
-    #[serde(with = "ts_seconds")]
-    from: NaiveDateTime,
-    #[serde(with = "ts_seconds")]
-    to: NaiveDateTime,
+    #[serde(with = "serde_miss_time_tuple")]
+    from: MissTimeTuple,
+    #[serde(with = "serde_miss_time_tuple")]
+    to: MissTimeTuple,
 }
 
 impl<T> ItemizedResponse<T> {
     pub fn new(
         items: Vec<T>,
         complete: bool,
-        query_from: NaiveDateTime,
-        query_to: NaiveDateTime,
-        data_to: Option<NaiveDateTime>,
+        query_from: MissTimeTuple,
+        query_to: MissTimeTuple,
+        data_to: Option<MissTimeTuple>,
     ) -> Self {
         let to = if complete {
             query_to
@@ -34,13 +35,13 @@ impl<T> ItemizedResponse<T> {
 }
 
 pub trait ResponseItem {
-    fn get_ref_time(&self) -> NaiveDateTime;
+    fn get_source_miss_time_tuple(&self) -> MissTimeTuple;
 }
 
-pub fn get_last_ref_time<T: ResponseItem>(items: &Vec<T>) -> Option<NaiveDateTime> {
+pub fn get_last_source_miss_time_tuple<T: ResponseItem>(items: &Vec<T>) -> Option<MissTimeTuple> {
     if items.is_empty() {
         None
     } else {
-        Some(items[items.len() - 1].get_ref_time())
+        Some(items[items.len() - 1].get_source_miss_time_tuple())
     }
 }

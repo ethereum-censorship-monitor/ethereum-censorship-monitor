@@ -5,12 +5,16 @@ use chrono::{Duration, NaiveDateTime};
 use serde::Deserialize;
 use sqlx::postgres::types::PgInterval;
 
-use super::RequestError;
+use super::{miss_time_tuple::serde_opt_miss_time_tuple, MissTimeTuple, RequestError};
 
 #[derive(Deserialize, Clone)]
 pub struct MissArgs {
-    from: Option<i64>,
-    to: Option<i64>,
+    #[serde(default)]
+    #[serde(with = "serde_opt_miss_time_tuple")]
+    from: Option<MissTimeTuple>,
+    #[serde(default)]
+    #[serde(with = "serde_opt_miss_time_tuple")]
+    to: Option<MissTimeTuple>,
     block_number: Option<i32>,
     proposer_index: Option<i32>,
     sender: Option<String>,
@@ -20,8 +24,12 @@ pub struct MissArgs {
 
 #[derive(Deserialize, Clone)]
 pub struct GroupedMissArgs {
-    from: Option<i64>,
-    to: Option<i64>,
+    #[serde(default)]
+    #[serde(with = "serde_opt_miss_time_tuple")]
+    from: Option<MissTimeTuple>,
+    #[serde(default)]
+    #[serde(with = "serde_opt_miss_time_tuple")]
+    to: Option<MissTimeTuple>,
     block_number: Option<i32>,
     proposer_index: Option<i32>,
     sender: Option<String>,
@@ -31,20 +39,24 @@ pub struct GroupedMissArgs {
 }
 
 impl MissArgs {
-    pub fn checked_from(&self) -> Result<NaiveDateTime, RequestError> {
-        let t = from_opt_timestamp(self.from, String::from("from"))?;
-        Ok(t.unwrap_or_else(|| NaiveDateTime::from_timestamp_opt(0, 0).unwrap()))
+    pub fn checked_from(&self) -> Result<MissTimeTuple, RequestError> {
+        Ok(self.from.unwrap_or_else(|| MissTimeTuple {
+            proposal_time: NaiveDateTime::from_timestamp_opt(0, 0).unwrap(),
+            tx_quorum_reached: None,
+        }))
     }
 
-    pub fn checked_to(&self, request_time: NaiveDateTime) -> Result<NaiveDateTime, RequestError> {
-        let t = from_opt_timestamp(self.to, String::from("to"))?;
-        Ok(t.unwrap_or(request_time))
+    pub fn checked_to(&self, request_time: NaiveDateTime) -> Result<MissTimeTuple, RequestError> {
+        Ok(self.to.unwrap_or(MissTimeTuple {
+            proposal_time: request_time,
+            tx_quorum_reached: None,
+        }))
     }
 
     pub fn checked_time_range(
         &self,
         request_time: NaiveDateTime,
-    ) -> Result<(NaiveDateTime, NaiveDateTime), RequestError> {
+    ) -> Result<(MissTimeTuple, MissTimeTuple), RequestError> {
         let from = self.checked_from()?;
         let to = self.checked_to(request_time)?;
         Ok((min(from, to), max(from, to)))
@@ -95,26 +107,6 @@ impl From<GroupedMissArgs> for MissArgs {
             propagation_time: m.propagation_time,
             min_tip: m.min_tip,
         }
-    }
-}
-
-fn from_opt_timestamp(
-    i: Option<i64>,
-    parameter: String,
-) -> Result<Option<NaiveDateTime>, RequestError> {
-    if i.is_none() {
-        return Ok(None);
-    }
-    let i = i.unwrap();
-
-    if i < 0 {
-        return Err(RequestError::ParameterOutOfRange { parameter });
-    }
-    let t = NaiveDateTime::from_timestamp_opt(i, 0);
-    if t.is_none() {
-        Err(RequestError::ParameterOutOfRange { parameter })
-    } else {
-        Ok(t)
     }
 }
 

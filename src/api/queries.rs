@@ -3,7 +3,10 @@ use chrono::{naive::serde::ts_seconds, NaiveDateTime};
 use serde::Serialize;
 use sqlx::types::JsonValue;
 
-use super::{requests::GroupedMissArgs, AppState, InternalError, MissArgs, ResponseItem};
+use super::{
+    miss_time_tuple::MissTimeTuple, requests::GroupedMissArgs, AppState, InternalError, MissArgs,
+    ResponseItem,
+};
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Miss {
@@ -20,18 +23,19 @@ pub struct Miss {
     pub tx_quorum_reached: NaiveDateTime,
     pub sender: String,
     pub tip: Option<i64>,
-    #[serde(skip_serializing)]
-    pub ref_time: NaiveDateTime,
 }
 
 pub async fn query_misses(args: &MissArgs, data: &web::Data<AppState>) -> Result<Vec<Miss>, Error> {
     let pool = &data.pool;
     let limit = data.config.api_max_response_rows;
+    let (min, max) = args.checked_time_range(data.request_time)?;
     let result = sqlx::query_file_as!(
         Miss,
         "src/api/misses_query.sql",
-        args.checked_time_range(data.request_time)?.0,
-        args.checked_time_range(data.request_time)?.1,
+        min.proposal_time,
+        min.tx_quorum_reached,
+        max.proposal_time,
+        max.tx_quorum_reached,
         args.checked_block_number()?,
         args.checked_proposer_index()?,
         args.checked_sender()?,
@@ -63,9 +67,11 @@ pub struct Tx {
     pub blocks: JsonValue,
     pub num_misses: i64,
     #[serde(skip_serializing)]
-    pub ref_time: NaiveDateTime,
+    pub source_proposal_time: NaiveDateTime,
     #[serde(skip_serializing)]
-    pub ref_row_number: i64,
+    pub source_tx_quorum_reached: NaiveDateTime,
+    #[serde(skip_serializing)]
+    pub source_row_number: i64,
 }
 
 pub async fn query_txs(
@@ -75,11 +81,14 @@ pub async fn query_txs(
     let pool = &data.pool;
     let limit = data.config.api_max_response_rows;
     let miss_args: MissArgs = args.clone().into();
+    let (min, max) = miss_args.checked_time_range(data.request_time)?;
     let result = sqlx::query_file_as!(
         Tx,
         "src/api/txs_query.sql",
-        miss_args.checked_time_range(data.request_time)?.0,
-        miss_args.checked_time_range(data.request_time)?.1,
+        min.proposal_time,
+        min.tx_quorum_reached,
+        max.proposal_time,
+        max.tx_quorum_reached,
         miss_args.checked_block_number()?,
         miss_args.checked_proposer_index()?,
         miss_args.checked_sender()?,
@@ -111,9 +120,11 @@ pub struct Block {
     pub num_misses: i64,
     pub txs: JsonValue,
     #[serde(skip_serializing)]
-    pub ref_time: NaiveDateTime,
+    pub source_proposal_time: NaiveDateTime,
     #[serde(skip_serializing)]
-    pub ref_row_number: i64,
+    pub source_tx_quorum_reached: NaiveDateTime,
+    #[serde(skip_serializing)]
+    pub source_row_number: i64,
 }
 
 pub async fn query_blocks(
@@ -123,11 +134,14 @@ pub async fn query_blocks(
     let pool = &data.pool;
     let limit = data.config.api_max_response_rows;
     let miss_args: MissArgs = args.clone().into();
+    let (min, max) = miss_args.checked_time_range(data.request_time)?;
     let result = sqlx::query_file_as!(
         Block,
         "src/api/blocks_query.sql",
-        miss_args.checked_time_range(data.request_time)?.0,
-        miss_args.checked_time_range(data.request_time)?.1,
+        min.proposal_time,
+        min.tx_quorum_reached,
+        max.proposal_time,
+        max.tx_quorum_reached,
         miss_args.checked_block_number()?,
         miss_args.checked_proposer_index()?,
         miss_args.checked_sender()?,
@@ -149,19 +163,28 @@ pub async fn query_blocks(
 }
 
 impl ResponseItem for Miss {
-    fn get_ref_time(&self) -> NaiveDateTime {
-        self.ref_time
+    fn get_source_miss_time_tuple(&self) -> MissTimeTuple {
+        MissTimeTuple {
+            proposal_time: self.proposal_time,
+            tx_quorum_reached: Some(self.tx_quorum_reached),
+        }
     }
 }
 
 impl ResponseItem for Tx {
-    fn get_ref_time(&self) -> NaiveDateTime {
-        self.ref_time
+    fn get_source_miss_time_tuple(&self) -> MissTimeTuple {
+        MissTimeTuple {
+            proposal_time: self.source_proposal_time,
+            tx_quorum_reached: Some(self.source_tx_quorum_reached),
+        }
     }
 }
 
 impl ResponseItem for Block {
-    fn get_ref_time(&self) -> NaiveDateTime {
-        self.ref_time
+    fn get_source_miss_time_tuple(&self) -> MissTimeTuple {
+        MissTimeTuple {
+            proposal_time: self.source_proposal_time,
+            tx_quorum_reached: Some(self.source_tx_quorum_reached),
+        }
     }
 }
