@@ -38,23 +38,13 @@ WHERE
     ($9::bigint IS NULL OR tip >= $9)
 ORDER BY
     CASE WHEN $10 THEN
-        proposal_time
+        (proposal_time, tx_quorum_reached)
     ELSE
-        to_timestamp(0)
+        (to_timestamp(0), to_timestamp(0))
     END ASC,
     CASE WHEN $10 THEN
-        tx_quorum_reached
+        (to_timestamp(0), to_timestamp(0))
     ELSE
-        to_timestamp(0)
-    END ASC,
-    CASE WHEN $10 THEN
-        to_timestamp(0)
-    ELSE
-        proposal_time
-    END DESC,
-    CASE WHEN $10 THEN
-        to_timestamp(0)
-    ELSE
-        tx_quorum_reached
+        (proposal_time, tx_quorum_reached)
     END DESC
 LIMIT $11;
