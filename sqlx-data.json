@@ -1,84 +1,6 @@
 {
   "db": "PostgreSQL",
-  "3977d701e82ce298849f9d142d0b1aa0e61e8eba271db096891ba4feaccd4dfa": {
-    "describe": {
-      "columns": [
-        {
-          "name": "tx_hash",
-          "ordinal": 0,
-          "type_info": "Bpchar"
-        },
-        {
-          "name": "tx_first_seen!",
-          "ordinal": 1,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "tx_quorum_reached!",
-          "ordinal": 2,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "sender!",
-          "ordinal": 3,
-          "type_info": "Bpchar"
-        },
-        {
-          "name": "source_proposal_time!",
-          "ordinal": 4,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "source_tx_quorum_reached!",
-          "ordinal": 5,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "source_row_number!",
-          "ordinal": 6,
-          "type_info": "Int8"
-        },
-        {
-          "name": "num_misses!",
-          "ordinal": 7,
-          "type_info": "Int8"
-        },
-        {
-          "name": "blocks!",
-          "ordinal": 8,
-          "type_info": "Json"
-        }
-      ],
-      "nullable": [
-        false,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "Timestamp",
-          "Timestamp",
-          "Timestamp",
-          "Timestamp",
-          "Int4",
-          "Int4",
-          "Bpchar",
-          "Interval",
-          "Int8",
-          "Bool",
-          "Int8"
-        ]
-      }
-    },
-    "query": "-- parameters:\n-- $1: min_proposal_time\n-- $2: min_tx_quorum_reached\n-- $3: max_proposal_time\n-- $4: max_tx_quorum_reached\n-- $5: block_number\n-- $6: proposer_index\n-- $7: sender\n-- $8: min_propagation_time\n-- $9: min_tip\n-- $10: is_order_ascending\n-- $11: limit\n\nSELECT\n    tx_hash,\n    min(tx_first_seen) AS \"tx_first_seen!\",\n    min(tx_quorum_reached) AS \"tx_quorum_reached!\",\n    min(sender) AS \"sender!\",\n    min(source_proposal_time) AS \"source_proposal_time!\",\n    min(source_tx_quorum_reached) AS \"source_tx_quorum_reached!\",\n    max(source_row_number) AS \"source_row_number!\",\n    count(block_hash) AS \"num_misses!\",\n    json_agg(json_build_object(\n        'block_hash', block_hash,\n        'slot', slot,\n        'proposal_time', floor(extract(epoch from proposal_time)),\n        'block_number', block_number,\n        'proposer_index', proposer_index,\n        'tip', tip\n    )) AS \"blocks!\"\nFROM (\n    SELECT\n        DISTINCT ON (tx_hash, block_hash)\n        joined_miss.tx_hash AS tx_hash,\n        joined_miss.block_hash AS block_hash,\n        joined_miss.slot AS slot,\n        joined_miss.block_number AS block_number,\n        joined_miss.proposal_time AS proposal_time,\n        joined_miss.proposer_index AS proposer_index,\n        joined_miss.tx_first_seen AS tx_first_seen,\n        joined_miss.tx_quorum_reached AS tx_quorum_reached,\n        joined_miss.sender AS sender,\n        joined_miss.tip AS tip,\n        source_miss.proposal_time AS source_proposal_time,\n        source_miss.tx_quorum_reached AS source_tx_quorum_reached,\n        source_miss.row_number AS source_row_number\n    FROM (\n        SELECT\n            tx_hash,\n            block_hash,\n            proposal_time,\n            tx_quorum_reached,\n            ROW_NUMBER () OVER () AS row_number\n        FROM\n            data.full_miss\n        WHERE\n            ($1::timestamp IS NULL OR\n                (proposal_time > $1 OR\n                    (proposal_time = $1 AND ($2::timestamp IS NULL OR tx_quorum_reached >= $2)))) AND\n            ($3::timestamp IS NULL OR\n                (proposal_time < $3 OR\n                    (proposal_time = $3 AND ($4::timestamp IS NULL OR tx_quorum_reached <= $4)))) AND\n            ($5::integer IS NULL OR block_number = $5) AND\n            ($6::integer IS NULL OR proposer_index = $6) AND\n            ($7::char(42) IS NULL OR sender = $7) AND\n            ($8::interval IS NULL OR proposal_time - tx_quorum_reached > $8) AND\n            ($9::bigint IS NULL OR tip >= $9)\n        ORDER BY\n            CASE WHEN $10 THEN\n                (proposal_time, tx_quorum_reached)\n            ELSE\n                (to_timestamp(0), to_timestamp(0))\n            END ASC,\n            CASE WHEN $10 THEN\n                (to_timestamp(0), to_timestamp(0))\n            ELSE\n                (proposal_time, tx_quorum_reached)\n            END DESC\n        LIMIT $11\n    ) AS source_miss\n    INNER JOIN data.full_miss joined_miss ON joined_miss.tx_hash = source_miss.tx_hash\n    WHERE\n        ($8::interval IS NULL OR joined_miss.proposal_time - joined_miss.tx_quorum_reached > $8) AND\n        ($9::bigint IS NULL OR joined_miss.tip >= $9)\n) AS miss\nGROUP BY tx_hash;\n"
-  },
-  "85f9cb971bdadfb590327b011e0d8cb619aece97a489565a203429b33ac96802": {
+  "1b7a9e3374cacae1279db83fac62bc3c4de2f9019babe85c574918e07a7708af": {
     "describe": {
       "columns": [
         {
@@ -130,6 +52,16 @@
           "name": "tip",
           "ordinal": 9,
           "type_info": "Int8"
+        },
+        {
+          "name": "filtered_miss_count!",
+          "ordinal": 10,
+          "type_info": "Int8"
+        },
+        {
+          "name": "filtered_miss_row_by_proposal_time!",
+          "ordinal": 11,
+          "type_info": "Int8"
         }
       ],
       "nullable": [
@@ -142,12 +74,12 @@
         false,
         false,
         false,
-        true
+        true,
+        null,
+        null
       ],
       "parameters": {
         "Left": [
-          "Timestamp",
-          "Timestamp",
           "Timestamp",
           "Timestamp",
           "Int4",
@@ -156,11 +88,107 @@
           "Interval",
           "Int8",
           "Bool",
+          "Int8",
           "Int8"
         ]
       }
     },
-    "query": "-- parameters:\n-- $1: min_proposal_time\n-- $2: min_tx_quorum_reached\n-- $3: max_proposal_time\n-- $4: max_tx_quorum_reached\n-- $5: block_number\n-- $6: proposer_index\n-- $7: sender\n-- $8: min_propagation_time\n-- $9: min_tip\n-- $10: is_order_ascending\n-- $11: limit\n\nSELECT\n    tx_hash,\n    block_hash,\n    slot,\n    block_number,\n    proposal_time,\n    proposer_index,\n    tx_first_seen,\n    tx_quorum_reached,\n    sender,\n    tip\nFROM\n    data.full_miss\nWHERE\n    ($1::timestamp IS NULL OR\n        (proposal_time > $1 OR\n            (proposal_time = $1 AND ($2::timestamp IS NULL OR tx_quorum_reached >= $2)))) AND\n    ($3::timestamp IS NULL OR\n        (proposal_time < $3 OR\n            (proposal_time = $3 AND ($4::timestamp IS NULL OR tx_quorum_reached <= $4)))) AND\n    ($5::integer IS NULL OR block_number = $5) AND\n    ($6::integer IS NULL OR proposer_index = $6) AND\n    ($7::char(42) IS NULL OR sender = $7) AND\n    ($8::interval IS NULL OR proposal_time - tx_quorum_reached > $8) AND\n    ($9::bigint IS NULL OR tip >= $9)\nORDER BY\n    CASE WHEN $10 THEN\n        (proposal_time, tx_quorum_reached)\n    ELSE\n        (to_timestamp(0), to_timestamp(0))\n    END ASC,\n    CASE WHEN $10 THEN\n        (to_timestamp(0), to_timestamp(0))\n    ELSE\n        (proposal_time, tx_quorum_reached)\n    END DESC\nLIMIT $11;\n"
+    "query": "-- parameters:\n-- $1: min_proposal_time\n-- $2: max_proposal_time\n-- $3: block_number\n-- $4: proposer_index\n-- $5: sender\n-- $6: min_propagation_time\n-- $7: min_tip\n-- $8: is_order_ascending\n-- $9: limit\n-- $10: offset\n\nSELECT\n    tx_hash,\n    block_hash,\n    slot,\n    block_number,\n    proposal_time,\n    proposer_index,\n    tx_first_seen,\n    tx_quorum_reached,\n    sender,\n    tip,\n    filtered_miss_count AS \"filtered_miss_count!\",\n    filtered_miss_row_by_proposal_time AS \"filtered_miss_row_by_proposal_time!\"\nFROM (\n    SELECT\n        *,\n        count(*) OVER () AS \"filtered_miss_count\",\n        row_number() OVER (PARTITION BY proposal_time ORDER BY ord1, ord2) - 1 AS \"filtered_miss_row_by_proposal_time\"\n    FROM (\n        SELECT\n            tx_hash,\n            block_hash,\n            slot,\n            block_number,\n            proposal_time,\n            proposer_index,\n            tx_first_seen,\n            tx_quorum_reached,\n            sender,\n            tip,\n            CASE WHEN $8 THEN\n                1\n            ELSE\n                -1\n            END * EXTRACT(EPOCH FROM proposal_time) AS \"ord1\",\n            CASE WHEN $8 THEN\n                1\n            ELSE\n                -1\n            END * EXTRACT(EPOCH FROM tx_quorum_reached) AS \"ord2\"\n        FROM\n            data.full_miss\n        WHERE\n            ($1::timestamp IS NULL OR proposal_time > $1 OR\n                ($8 AND proposal_time = $1)) AND\n            ($2::timestamp IS NULL OR proposal_time < $2 OR\n                (NOT $8 AND proposal_time = $2)) AND\n            ($3::integer IS NULL OR block_number = $3) AND\n            ($4::integer IS NULL OR proposer_index = $4) AND\n            ($5::char(42) IS NULL OR sender = $5) AND\n            ($6::interval IS NULL OR proposal_time - tx_quorum_reached > $6) AND\n            ($7::bigint IS NULL OR tip >= $7)\n        ORDER BY ord1, ord2\n        LIMIT $9\n        OFFSET $10\n    ) AS uncounted_miss\n    ORDER BY ord1, ord2\n) AS miss\nORDER BY ord1, ord2;\n"
+  },
+  "21783384aef285590cc8b28307e34222fa47f5f7e4cb3e5afd6e21d2ac222782": {
+    "describe": {
+      "columns": [
+        {
+          "name": "tx_hash",
+          "ordinal": 0,
+          "type_info": "Bpchar"
+        },
+        {
+          "name": "block_hash",
+          "ordinal": 1,
+          "type_info": "Bpchar"
+        },
+        {
+          "name": "slot",
+          "ordinal": 2,
+          "type_info": "Int4"
+        },
+        {
+          "name": "block_number",
+          "ordinal": 3,
+          "type_info": "Int4"
+        },
+        {
+          "name": "proposal_time",
+          "ordinal": 4,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "proposer_index",
+          "ordinal": 5,
+          "type_info": "Int4"
+        },
+        {
+          "name": "tx_first_seen",
+          "ordinal": 6,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "tx_quorum_reached",
+          "ordinal": 7,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "sender",
+          "ordinal": 8,
+          "type_info": "Bpchar"
+        },
+        {
+          "name": "tip",
+          "ordinal": 9,
+          "type_info": "Int8"
+        },
+        {
+          "name": "filtered_miss_count!",
+          "ordinal": 10,
+          "type_info": "Int8"
+        },
+        {
+          "name": "filtered_miss_row_by_proposal_time!",
+          "ordinal": 11,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        null,
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Timestamp",
+          "Timestamp",
+          "Int4",
+          "Int4",
+          "Bpchar",
+          "Interval",
+          "Int8",
+          "Bool",
+          "Int8",
+          "Int8"
+        ]
+      }
+    },
+    "query": "-- parameters:\n-- $1: min_proposal_time\n-- $2: max_proposal_time\n-- $3: block_number\n-- $4: proposer_index\n-- $5: sender\n-- $6: min_propagation_time\n-- $7: min_tip\n-- $8: is_order_ascending\n-- $9: limit\n-- $10: offset\n\n\nSELECT\n    joined_miss.tx_hash AS tx_hash,\n    joined_miss.block_hash AS block_hash,\n    joined_miss.slot AS slot,\n    joined_miss.block_number AS block_number,\n    joined_miss.proposal_time AS proposal_time,\n    joined_miss.proposer_index AS proposer_index,\n    joined_miss.tx_first_seen AS tx_first_seen,\n    joined_miss.tx_quorum_reached AS tx_quorum_reached,\n    joined_miss.sender AS sender,\n    joined_miss.tip AS tip,\n    filtered_miss.filtered_miss_count AS \"filtered_miss_count!\",\n    filtered_miss.filtered_miss_row_by_proposal_time AS \"filtered_miss_row_by_proposal_time!\"\nFROM (\n    SELECT\n        *,\n        count(*) OVER () AS filtered_miss_count,\n        row_number() OVER (PARTITION BY proposal_time ORDER BY ord1, ord2) - 1 AS filtered_miss_row_by_proposal_time\n    FROM (\n        SELECT\n            block_hash,\n            proposal_time,\n            CASE WHEN $8 THEN\n                1\n            ELSE\n                -1\n            END * EXTRACT(EPOCH FROM proposal_time) AS \"ord1\",\n            CASE WHEN $8 THEN\n                1\n            ELSE\n                -1\n            END * EXTRACT(EPOCH FROM tx_quorum_reached) AS \"ord2\"\n            FROM\n            data.full_miss\n                    WHERE\n                ($1::timestamp IS NULL OR proposal_time > $1 OR\n                    ($8 AND proposal_time = $1)) AND\n                ($2::timestamp IS NULL OR proposal_time < $2 OR\n                    (NOT $8 AND proposal_time = $2)) AND\n                ($3::integer IS NULL OR block_number = $3) AND\n                ($4::integer IS NULL OR proposer_index = $4) AND\n                ($5::char(42) IS NULL OR sender = $5) AND\n                ($6::interval IS NULL OR proposal_time - tx_quorum_reached > $6) AND\n                ($7::bigint IS NULL OR tip >= $7)\n            ORDER BY ord1, ord2\n            LIMIT $9\n            OFFSET $10\n    ) AS filtered_miss_uncounted\n) AS filtered_miss\nINNER JOIN data.full_miss joined_miss ON joined_miss.block_hash = filtered_miss.block_hash\nORDER BY filtered_miss.ord1, filtered_miss.ord2;\n"
   },
   "8b9c5ca1e78042d506d4db56ba1c3b1c732cc725e4777d724b8a9200e4c7b0ad": {
     "describe": {
@@ -202,90 +230,6 @@
     },
     "query": "\n        TRUNCATE miss, transaction, beacon_block RESTART IDENTITY;\n        "
   },
-  "c4f01180e6c0a0a27412b5716ab489b2b0ce93aed6433515d305083e9bc00722": {
-    "describe": {
-      "columns": [
-        {
-          "name": "block_hash",
-          "ordinal": 0,
-          "type_info": "Bpchar"
-        },
-        {
-          "name": "slot!",
-          "ordinal": 1,
-          "type_info": "Int4"
-        },
-        {
-          "name": "proposal_time!",
-          "ordinal": 2,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "block_number!",
-          "ordinal": 3,
-          "type_info": "Int4"
-        },
-        {
-          "name": "proposer_index!",
-          "ordinal": 4,
-          "type_info": "Int4"
-        },
-        {
-          "name": "source_proposal_time!",
-          "ordinal": 5,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "source_tx_quorum_reached!",
-          "ordinal": 6,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "source_row_number!",
-          "ordinal": 7,
-          "type_info": "Int8"
-        },
-        {
-          "name": "num_misses!",
-          "ordinal": 8,
-          "type_info": "Int8"
-        },
-        {
-          "name": "txs!",
-          "ordinal": 9,
-          "type_info": "Json"
-        }
-      ],
-      "nullable": [
-        false,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "Timestamp",
-          "Timestamp",
-          "Timestamp",
-          "Timestamp",
-          "Int4",
-          "Int4",
-          "Bpchar",
-          "Interval",
-          "Int8",
-          "Bool",
-          "Int8"
-        ]
-      }
-    },
-    "query": "-- parameters:\n-- $1: min_proposal_time\n-- $2: min_tx_quorum_reached\n-- $3: max_proposal_time\n-- $4: max_tx_quorum_reached\n-- $5: block_number\n-- $6: proposer_index\n-- $7: sender\n-- $8: min_propagation_time\n-- $9: min_tip\n-- $10: is_order_ascending\n-- $11: limit\n\nSELECT\n    block_hash,\n    min(slot) AS \"slot!\",\n    min(proposal_time) AS \"proposal_time!\",\n    min(block_number) AS \"block_number!\",\n    min(proposer_index) AS \"proposer_index!\",\n    min(source_proposal_time) AS \"source_proposal_time!\",\n    min(source_tx_quorum_reached) AS \"source_tx_quorum_reached!\",\n    max(source_row_number) AS \"source_row_number!\",\n    count(tx_hash) AS \"num_misses!\",\n    json_agg(json_build_object(\n        'tx_hash', tx_hash,\n        'tx_first_seen', floor(extract(epoch from tx_first_seen)),\n        'tx_quorum_reached', floor(extract(epoch from tx_quorum_reached)),\n        'sender', sender,\n        'tip', tip\n    )) AS \"txs!\"\nFROM (\n    SELECT\n        DISTINCT ON (tx_hash, block_hash)\n        joined_miss.tx_hash AS tx_hash,\n        joined_miss.block_hash AS block_hash,\n        joined_miss.slot AS slot,\n        joined_miss.block_number AS block_number,\n        joined_miss.proposal_time AS proposal_time,\n        joined_miss.proposer_index AS proposer_index,\n        joined_miss.tx_first_seen AS tx_first_seen,\n        joined_miss.tx_quorum_reached AS tx_quorum_reached,\n        joined_miss.sender AS sender,\n        joined_miss.tip AS tip,\n        source_miss.proposal_time AS source_proposal_time,\n        source_miss.tx_quorum_reached AS source_tx_quorum_reached,\n        source_miss.row_number AS source_row_number\n    FROM (\n        SELECT\n            tx_hash,\n            block_hash,\n            proposal_time,\n            tx_quorum_reached,\n            ROW_NUMBER () OVER () AS row_number\n        FROM\n            data.full_miss\n        WHERE\n            ($1::timestamp IS NULL OR\n                (proposal_time > $1 OR\n                    (proposal_time = $1 AND ($2::timestamp IS NULL OR tx_quorum_reached >= $2)))) AND\n            ($3::timestamp IS NULL OR\n                (proposal_time < $3 OR\n                    (proposal_time = $3 AND ($4::timestamp IS NULL OR tx_quorum_reached <= $4)))) AND\n            ($5::integer IS NULL OR block_number = $5) AND\n            ($6::integer IS NULL OR proposer_index = $6) AND\n            ($7::char(42) IS NULL OR sender = $7) AND\n            ($8::interval IS NULL OR proposal_time - tx_quorum_reached > $8) AND\n            ($9::bigint IS NULL OR tip >= $9)\n        ORDER BY\n            CASE WHEN $10 THEN\n                (proposal_time, tx_quorum_reached)\n            ELSE\n                (to_timestamp(0), to_timestamp(0))\n            END ASC,\n            CASE WHEN $10 THEN\n                (to_timestamp(0), to_timestamp(0))\n            ELSE\n                (proposal_time, tx_quorum_reached)\n            END DESC\n        LIMIT $11\n    ) AS source_miss\n    INNER JOIN data.full_miss joined_miss ON joined_miss.block_hash = source_miss.block_hash\n    WHERE\n        ($8::interval IS NULL OR joined_miss.proposal_time - joined_miss.tx_quorum_reached > $8) AND\n        ($9::bigint IS NULL OR joined_miss.tip >= $9)\n) AS miss\nGROUP BY block_hash;\n"
-  },
   "d1b26cd7a29e8a47e439fb78af553156804683ee8f5533939327148e6d3d4e01": {
     "describe": {
       "columns": [],
@@ -325,5 +269,100 @@
       }
     },
     "query": "\n        INSERT INTO data.beacon_block (\n            root,\n            slot,\n            proposer_index,\n            execution_block_hash,\n            execution_block_number,\n            proposal_time,\n            num_transactions,\n            num_pool_transactions\n        ) VALUES (\n            $1,\n            $2,\n            $3,\n            $4,\n            $5,\n            $6,\n            $7,\n            $8\n        ) ON CONFLICT DO NOTHING;\n        "
+  },
+  "f705dac01a52ac8e1876c4d7d32a7a20670e0f0cf5dab80d69f5cb0b5541b0aa": {
+    "describe": {
+      "columns": [
+        {
+          "name": "tx_hash",
+          "ordinal": 0,
+          "type_info": "Bpchar"
+        },
+        {
+          "name": "block_hash",
+          "ordinal": 1,
+          "type_info": "Bpchar"
+        },
+        {
+          "name": "slot",
+          "ordinal": 2,
+          "type_info": "Int4"
+        },
+        {
+          "name": "block_number",
+          "ordinal": 3,
+          "type_info": "Int4"
+        },
+        {
+          "name": "proposal_time",
+          "ordinal": 4,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "proposer_index",
+          "ordinal": 5,
+          "type_info": "Int4"
+        },
+        {
+          "name": "tx_first_seen",
+          "ordinal": 6,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "tx_quorum_reached",
+          "ordinal": 7,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "sender",
+          "ordinal": 8,
+          "type_info": "Bpchar"
+        },
+        {
+          "name": "tip",
+          "ordinal": 9,
+          "type_info": "Int8"
+        },
+        {
+          "name": "filtered_miss_count!",
+          "ordinal": 10,
+          "type_info": "Int8"
+        },
+        {
+          "name": "filtered_miss_row_by_proposal_time!",
+          "ordinal": 11,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        null,
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Timestamp",
+          "Timestamp",
+          "Int4",
+          "Int4",
+          "Bpchar",
+          "Interval",
+          "Int8",
+          "Bool",
+          "Int8",
+          "Int8"
+        ]
+      }
+    },
+    "query": "-- parameters:\n-- $1: min_proposal_time\n-- $2: max_proposal_time\n-- $3: block_number\n-- $4: proposer_index\n-- $5: sender\n-- $6: min_propagation_time\n-- $7: min_tip\n-- $8: is_order_ascending\n-- $9: limit\n-- $10: offset\n\n\nSELECT\n    joined_miss.tx_hash AS tx_hash,\n    joined_miss.block_hash AS block_hash,\n    joined_miss.slot AS slot,\n    joined_miss.block_number AS block_number,\n    joined_miss.proposal_time AS proposal_time,\n    joined_miss.proposer_index AS proposer_index,\n    joined_miss.tx_first_seen AS tx_first_seen,\n    joined_miss.tx_quorum_reached AS tx_quorum_reached,\n    joined_miss.sender AS sender,\n    joined_miss.tip AS tip,\n    filtered_miss.filtered_miss_count AS \"filtered_miss_count!\",\n    filtered_miss.filtered_miss_row_by_proposal_time AS \"filtered_miss_row_by_proposal_time!\"\nFROM (\n    SELECT\n        *,\n        count(*) OVER () AS filtered_miss_count,\n        row_number() OVER (PARTITION BY proposal_time ORDER BY ord1, ord2) - 1 AS filtered_miss_row_by_proposal_time\n    FROM (\n        SELECT\n            tx_hash,\n            proposal_time,\n            CASE WHEN $8 THEN\n                1\n            ELSE\n                -1\n            END * EXTRACT(EPOCH FROM proposal_time) AS \"ord1\",\n            CASE WHEN $8 THEN\n                1\n            ELSE\n                -1\n            END * EXTRACT(EPOCH FROM tx_quorum_reached) AS \"ord2\"\n            FROM\n            data.full_miss\n                    WHERE\n                ($1::timestamp IS NULL OR proposal_time > $1 OR\n                    ($8 AND proposal_time = $1)) AND\n                ($2::timestamp IS NULL OR proposal_time < $2 OR\n                    (NOT $8 AND proposal_time = $2)) AND\n                ($3::integer IS NULL OR block_number = $3) AND\n                ($4::integer IS NULL OR proposer_index = $4) AND\n                ($5::char(42) IS NULL OR sender = $5) AND\n                ($6::interval IS NULL OR proposal_time - tx_quorum_reached > $6) AND\n                ($7::bigint IS NULL OR tip >= $7)\n            ORDER BY ord1, ord2\n            LIMIT $9\n            OFFSET $10\n    ) AS filtered_miss_uncounted\n) AS filtered_miss\nINNER JOIN data.full_miss joined_miss ON joined_miss.tx_hash = filtered_miss.tx_hash\nORDER BY filtered_miss.ord1, filtered_miss.ord2;\n"
   }
 }

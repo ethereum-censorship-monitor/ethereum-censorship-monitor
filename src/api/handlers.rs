@@ -3,10 +3,12 @@ use actix_web::{
     web::{self, Json, Query},
     Error, Responder, Result,
 };
+use itertools::Itertools;
 
 use super::{
-    get_last_source_miss_time_tuple, query_blocks, query_misses, query_txs, AppState,
-    GroupedMissArgs, ItemizedResponse, MissArgs,
+    get_end_bound, group_misses_to_blocks, group_misses_to_txs, is_query_complete, query_misses,
+    query_misses_for_blocks, query_misses_for_txs, AppState, Block, GroupedMissArgs,
+    ItemizedResponse, Miss, MissArgs, Tx,
 };
 
 #[get("/v0/misses")]
@@ -15,14 +17,16 @@ pub async fn handle_misses(
     q: Query<MissArgs>,
 ) -> Result<impl Responder, Error> {
     let misses = query_misses(&q.0, &data).await?;
-    let complete = misses.len() <= data.config.api_max_response_rows;
-    let last_miss_time_tuple = get_last_source_miss_time_tuple(&misses);
+
+    let complete = is_query_complete(&misses, data.config.api_max_response_rows);
+    let data_to = get_end_bound(&misses, &q.0.checked_from()?);
+
     let response = ItemizedResponse::new(
         misses,
         complete,
         q.0.checked_from()?,
         q.0.checked_to(data.request_time)?,
-        last_miss_time_tuple,
+        data_to,
     );
     Ok(Json(response))
 }
@@ -32,28 +36,31 @@ pub async fn handle_txs(
     data: web::Data<AppState>,
     q: Query<GroupedMissArgs>,
 ) -> Result<impl Responder, Error> {
-    let mut txs = query_txs(&q.0, &data).await?;
-    let num_original_rows = txs.iter().map(|b| b.source_row_number).max().unwrap_or(0) as usize;
-    let complete = if num_original_rows <= data.config.api_max_response_rows {
-        true
-    } else {
-        txs.retain(|b| (b.source_row_number as usize) < num_original_rows);
-        false
-    };
-    let last_miss_time_tuple = get_last_source_miss_time_tuple(&txs);
+    let misses = query_misses_for_txs(&q.0, &data).await?;
+    let misses: Vec<Miss> = misses.into_iter().unique().collect();
+
     let min_num_misses = q.checked_min_num_misses()?;
-    let filtered_txs = txs
+    let miss_args: MissArgs = q.0.into();
+
+    let complete = is_query_complete(&misses, data.config.api_max_response_rows);
+    let data_to = get_end_bound(&misses, &miss_args.checked_from()?);
+
+    let mut txs: Vec<Tx> = group_misses_to_txs(&misses)
         .iter()
-        .filter(|tx| min_num_misses.is_none() || tx.num_misses >= min_num_misses.unwrap())
+        .filter(|tx| min_num_misses.is_none() || tx.num_misses as i64 >= min_num_misses.unwrap())
         .cloned()
         .collect();
-    let miss_args: MissArgs = q.0.into();
+    txs.sort();
+    if !miss_args.checked_is_order_ascending(data.request_time)? {
+        txs.reverse();
+    }
+
     let response = ItemizedResponse::new(
-        filtered_txs,
+        txs,
         complete,
         miss_args.checked_from()?,
         miss_args.checked_to(data.request_time)?,
-        last_miss_time_tuple,
+        data_to,
     );
     Ok(Json(response))
 }
@@ -63,32 +70,33 @@ pub async fn handle_blocks(
     data: web::Data<AppState>,
     q: Query<GroupedMissArgs>,
 ) -> Result<impl Responder, Error> {
-    let mut blocks = query_blocks(&q.0, &data).await?;
-    let num_original_rows = blocks
-        .iter()
-        .map(|b| b.source_row_number)
-        .max()
-        .unwrap_or(0) as usize;
-    let complete = if num_original_rows <= data.config.api_max_response_rows {
-        true
-    } else {
-        blocks.retain(|b| (b.source_row_number as usize) < num_original_rows);
-        false
-    };
-    let last_miss_time_tuple = get_last_source_miss_time_tuple(&blocks);
+    let misses = query_misses_for_blocks(&q.0, &data).await?;
+    let misses: Vec<Miss> = misses.into_iter().unique().collect();
+
     let min_num_misses = q.checked_min_num_misses()?;
-    let filtered_blocks = blocks
+    let miss_args: MissArgs = q.0.into();
+
+    let complete = is_query_complete(&misses, data.config.api_max_response_rows);
+    let data_to = get_end_bound(&misses, &miss_args.checked_from()?);
+
+    let mut blocks: Vec<Block> = group_misses_to_blocks(&misses)
         .iter()
-        .filter(|block| min_num_misses.is_none() || block.num_misses >= min_num_misses.unwrap())
+        .filter(|block| {
+            min_num_misses.is_none() || block.num_misses as i64 >= min_num_misses.unwrap()
+        })
         .cloned()
         .collect();
-    let miss_args: MissArgs = q.0.into();
+    blocks.sort();
+    if !miss_args.checked_is_order_ascending(data.request_time)? {
+        blocks.reverse();
+    }
+
     let response = ItemizedResponse::new(
-        filtered_blocks,
+        blocks,
         complete,
         miss_args.checked_from()?,
         miss_args.checked_to(data.request_time)?,
-        last_miss_time_tuple,
+        data_to,
     );
     Ok(Json(response))
 }

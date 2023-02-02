@@ -1,20 +1,20 @@
 use std::cmp::{max, min};
 
 use actix_web::Result;
-use chrono::{Duration, NaiveDateTime};
+use chrono::{naive::serde::ts_seconds_option, Duration, NaiveDateTime};
 use serde::Deserialize;
 use sqlx::postgres::types::PgInterval;
 
-use super::{miss_time_tuple::serde_opt_miss_time_tuple, MissTimeTuple, RequestError};
+use super::{miss_range_bound::serde::miss_range_bound_option, MissRangeBound, RequestError};
 
 #[derive(Deserialize, Clone)]
 pub struct MissArgs {
     #[serde(default)]
-    #[serde(with = "serde_opt_miss_time_tuple")]
-    from: Option<MissTimeTuple>,
+    #[serde(with = "miss_range_bound_option")]
+    from: Option<MissRangeBound>,
     #[serde(default)]
-    #[serde(with = "serde_opt_miss_time_tuple")]
-    to: Option<MissTimeTuple>,
+    #[serde(with = "ts_seconds_option")]
+    to: Option<NaiveDateTime>,
     block_number: Option<i32>,
     proposer_index: Option<i32>,
     sender: Option<String>,
@@ -25,11 +25,11 @@ pub struct MissArgs {
 #[derive(Deserialize, Clone)]
 pub struct GroupedMissArgs {
     #[serde(default)]
-    #[serde(with = "serde_opt_miss_time_tuple")]
-    from: Option<MissTimeTuple>,
+    #[serde(with = "miss_range_bound_option")]
+    from: Option<MissRangeBound>,
     #[serde(default)]
-    #[serde(with = "serde_opt_miss_time_tuple")]
-    to: Option<MissTimeTuple>,
+    #[serde(with = "ts_seconds_option")]
+    to: Option<NaiveDateTime>,
     block_number: Option<i32>,
     proposer_index: Option<i32>,
     sender: Option<String>,
@@ -39,25 +39,22 @@ pub struct GroupedMissArgs {
 }
 
 impl MissArgs {
-    pub fn checked_from(&self) -> Result<MissTimeTuple, RequestError> {
-        Ok(self.from.unwrap_or_else(|| MissTimeTuple {
+    pub fn checked_from(&self) -> Result<MissRangeBound, RequestError> {
+        Ok(self.from.unwrap_or_else(|| MissRangeBound {
             proposal_time: NaiveDateTime::from_timestamp_opt(0, 0).unwrap(),
-            tx_quorum_reached: None,
+            offset: None,
         }))
     }
 
-    pub fn checked_to(&self, request_time: NaiveDateTime) -> Result<MissTimeTuple, RequestError> {
-        Ok(self.to.unwrap_or(MissTimeTuple {
-            proposal_time: request_time,
-            tx_quorum_reached: None,
-        }))
+    pub fn checked_to(&self, request_time: NaiveDateTime) -> Result<NaiveDateTime, RequestError> {
+        Ok(self.to.unwrap_or(request_time))
     }
 
     pub fn checked_time_range(
         &self,
         request_time: NaiveDateTime,
-    ) -> Result<(MissTimeTuple, MissTimeTuple), RequestError> {
-        let from = self.checked_from()?;
+    ) -> Result<(NaiveDateTime, NaiveDateTime), RequestError> {
+        let from = self.checked_from()?.proposal_time;
         let to = self.checked_to(request_time)?;
         Ok((min(from, to), max(from, to)))
     }
@@ -66,7 +63,9 @@ impl MissArgs {
         &self,
         request_time: NaiveDateTime,
     ) -> Result<bool, RequestError> {
-        Ok(self.checked_from()? <= self.checked_to(request_time)?)
+        let from = self.checked_from()?.proposal_time;
+        let to = self.checked_to(request_time)?;
+        Ok(from <= to)
     }
 
     pub fn checked_block_number(&self) -> Result<Option<i32>, RequestError> {

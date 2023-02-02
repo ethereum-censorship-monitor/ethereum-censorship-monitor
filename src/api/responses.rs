@@ -1,29 +1,34 @@
+use chrono::NaiveDateTime;
 use serde::Serialize;
 
-use super::{miss_time_tuple::serde_miss_time_tuple, MissTimeTuple};
+use super::{miss_range_bound::serde::miss_range_bound, MissRangeBound};
 
 #[derive(Debug, Serialize)]
 pub struct ItemizedResponse<T> {
     items: Vec<T>,
     complete: bool,
-    #[serde(with = "serde_miss_time_tuple")]
-    from: MissTimeTuple,
-    #[serde(with = "serde_miss_time_tuple")]
-    to: MissTimeTuple,
+    #[serde(with = "miss_range_bound")]
+    from: MissRangeBound,
+    #[serde(with = "miss_range_bound")]
+    to: MissRangeBound,
 }
 
 impl<T> ItemizedResponse<T> {
     pub fn new(
         items: Vec<T>,
         complete: bool,
-        query_from: MissTimeTuple,
-        query_to: MissTimeTuple,
-        data_to: Option<MissTimeTuple>,
+        query_from: MissRangeBound,
+        query_to: NaiveDateTime,
+        data_to: Option<MissRangeBound>,
     ) -> Self {
-        let to = if complete {
-            query_to
+        #[allow(clippy::unnecessary_unwrap)]
+        let to = if complete || data_to.is_none() {
+            MissRangeBound {
+                proposal_time: query_to,
+                offset: None,
+            }
         } else {
-            data_to.unwrap_or(query_to)
+            data_to.unwrap()
         };
         Self {
             items,
@@ -31,17 +36,5 @@ impl<T> ItemizedResponse<T> {
             from: query_from,
             to,
         }
-    }
-}
-
-pub trait ResponseItem {
-    fn get_source_miss_time_tuple(&self) -> MissTimeTuple;
-}
-
-pub fn get_last_source_miss_time_tuple<T: ResponseItem>(items: &Vec<T>) -> Option<MissTimeTuple> {
-    if items.is_empty() {
-        None
-    } else {
-        Some(items[items.len() - 1].get_source_miss_time_tuple())
     }
 }
