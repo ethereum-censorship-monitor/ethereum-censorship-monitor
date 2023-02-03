@@ -152,7 +152,7 @@ pub fn is_query_complete(misses: &[Miss], limit: usize) -> bool {
 
 pub fn get_end_bound(misses: &[Miss], query_from: &MissRangeBound) -> Option<MissRangeBound> {
     misses.last().map(|last_miss| {
-        let offset = (last_miss.filtered_miss_row_by_proposal_time as usize)
+        let offset_inclusive = (last_miss.filtered_miss_row_by_proposal_time as usize)
             + if last_miss.proposal_time == query_from.proposal_time {
                 query_from.offset.unwrap_or(0)
             } else {
@@ -160,7 +160,7 @@ pub fn get_end_bound(misses: &[Miss], query_from: &MissRangeBound) -> Option<Mis
             };
         MissRangeBound {
             proposal_time: last_miss.proposal_time,
-            offset: Some(offset),
+            offset: Some(offset_inclusive + 1),
         }
     })
 }
