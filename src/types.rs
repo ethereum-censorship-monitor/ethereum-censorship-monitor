@@ -80,7 +80,8 @@ impl<T> BeaconBlockWithoutRoot<T> {
 
 impl<T> fmt::Display for BeaconBlockWithoutRoot<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "#{}", self.slot)
+        let exec = &self.body.execution_payload;
+        write!(f, "#{}:{}", exec.block_number, exec.block_hash)
     }
 }
 
@@ -116,7 +117,8 @@ impl<T> BeaconBlock<T> {
 
 impl<T> fmt::Display for BeaconBlock<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "#{}:{}", self.slot, self.root)
+        let exec = &self.body.execution_payload;
+        write!(f, "#{}:{}", exec.block_number, exec.block_hash)
     }
 }
 
