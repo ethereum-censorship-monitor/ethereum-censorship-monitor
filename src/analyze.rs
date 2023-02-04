@@ -293,10 +293,20 @@ pub async fn analyze(
     let start_time = Instant::now();
 
     let exec = &beacon_block.body.execution_payload;
-    let txs_in_block: HashSet<&TxHash> =
-        HashSet::from_iter(exec.transactions.iter().map(|tx| &tx.hash));
-    let senders_in_block: HashSet<&Address> =
-        HashSet::from_iter(exec.transactions.iter().map(|tx| &tx.from));
+    let mut txs_in_block: HashSet<&TxHash> = HashSet::new();
+    let mut senders_in_block: HashSet<Address> = HashSet::new();
+    for tx in &exec.transactions {
+        txs_in_block.insert(&tx.hash);
+        let sender = tx.recover_from();
+        match sender {
+            Err(e) => {
+                log::warn!("failed to recover sender address of tx {}: {e}", tx.hash);
+            }
+            Ok(sender) => {
+                senders_in_block.insert(sender);
+            }
+        }
+    }
     let proposal_time = beacon_block.proposal_time();
     let pool_at_t = pool.content_at(proposal_time);
 
@@ -335,9 +345,13 @@ pub async fn analyze(
             continue;
         }
         let tx = obs_tx.transaction.as_ref().unwrap();
-        if senders_in_block.contains(&tx.from) {
-            num_replaced_txs += 1;
-            continue;
+        if let Ok(from) = tx.recover_from() {
+            if senders_in_block.contains(&from) {
+                num_replaced_txs += 1;
+                continue;
+            }
+        } else {
+            log::warn!("failed to recover sender address of tx {}", tx.hash);
         }
 
         match check_inclusion(tx, beacon_block, nonce_cache).await {
