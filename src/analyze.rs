@@ -297,6 +297,12 @@ pub async fn analyze(
         HashSet::from_iter(exec.transactions.iter().map(|tx| &tx.hash));
     let senders_in_block: HashSet<&Address> =
         HashSet::from_iter(exec.transactions.iter().map(|tx| &tx.from));
+    log::warn!(
+        "{} {} {}",
+        senders_in_block.len(),
+        txs_in_block.len(),
+        exec.transactions.len()
+    );
     let proposal_time = beacon_block.proposal_time();
     let pool_at_t = pool.content_at(proposal_time);
 
