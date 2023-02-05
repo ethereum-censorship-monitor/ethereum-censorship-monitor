@@ -90,10 +90,15 @@ impl NonceCache {
 
         let mut num_modified = 0;
         for tx in &self.beacon_block.body.execution_payload.transactions {
-            self.nonces.entry(tx.from).and_modify(|n| {
-                *n = tx.nonce.as_u64() + 1;
-                num_modified += 1;
-            });
+            let from = tx.recover_from();
+            if let Ok(from) = from {
+                self.nonces.entry(from).and_modify(|n| {
+                    *n = tx.nonce.as_u64() + 1;
+                    num_modified += 1;
+                });
+            } else {
+                log::warn!("failed to recover sender address of tx {}", tx.hash);
+            }
         }
         self.report();
         log::debug!(
