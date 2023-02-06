@@ -219,6 +219,24 @@ pub fn get_median_tip(transactions: &[Transaction], base_fee: U256) -> U256 {
     }
 }
 
+fn is_cancel_tx(transaction: &Transaction) -> bool {
+    if let Ok(from) = transaction.recover_from() {
+        if let Some(to) = transaction.to {
+            to == from || (to == Address::zero() && transaction.value.is_zero())
+        } else {
+            // this path should never be taken as all transactions have a receiver
+            log::warn!("cancel tx check failed because tx has no receiver address");
+            false
+        }
+    } else {
+        // this path should never be taken as all checked transactions are valid and the
+        // sender has already been
+        // recovered before
+        log::warn!("cancel tx check failed because recovering sender failed");
+        false
+    }
+}
+
 #[derive(Debug)]
 pub struct Analysis {
     pub beacon_block: BeaconBlock<Transaction>,
@@ -231,6 +249,7 @@ pub struct Analysis {
     pub num_still_propagating: usize,
     pub num_only_tx_hash: usize,
     pub num_replaced_txs: usize,
+    pub num_cancel_txs: usize,
     pub non_inclusion_reasons: HashMap<NonInclusionReason, usize>,
     pub duration: Duration,
 }
@@ -250,9 +269,9 @@ impl Analysis {
             "Analysis for block {beacon_block}: {included} txs from pool included, {missing} \
              missed, {in_pool} in pool, {in_block} in block, {quorum_not_reached} quorum not \
              reached, {still_propagating} still propagating, {only_hash} only hash known, \
-             {replaced} replaced, {nonce_mismatch} nonce mismatch, {not_enough_space} not enough \
-             space, {base_fee_too_low} base fee too low, {tip_too_low} tip too low, took \
-             {duration:.1}s",
+             {replaced} replaced, {cancel} cancel, {nonce_mismatch} nonce mismatch, \
+             {not_enough_space} not enough space, {base_fee_too_low} base fee too low, \
+             {tip_too_low} tip too low, took {duration:.1}s",
             beacon_block = self.beacon_block,
             included = self.included_transactions.len(),
             missing = self.missing_transactions.len(),
@@ -262,6 +281,7 @@ impl Analysis {
             still_propagating = self.num_still_propagating,
             only_hash = self.num_only_tx_hash,
             replaced = self.num_replaced_txs,
+            cancel = self.num_cancel_txs,
             nonce_mismatch = self
                 .non_inclusion_reasons
                 .get(&NonInclusionReason::NonceMismatch)
@@ -318,6 +338,7 @@ pub async fn analyze(
     let mut num_quorum_not_reached = 0;
     let mut num_still_propagating = 0;
     let mut num_replaced_txs = 0;
+    let mut num_cancel_txs = 0;
     let mut missing_txs = HashMap::new();
     let mut non_inclusion_reasons = HashMap::new();
 
@@ -352,6 +373,11 @@ pub async fn analyze(
             }
         } else {
             log::warn!("failed to recover sender address of tx {}", tx.hash);
+        }
+
+        if is_cancel_tx(tx) {
+            num_cancel_txs += 1;
+            continue;
         }
 
         match check_inclusion(tx, beacon_block, nonce_cache).await {
@@ -408,6 +434,7 @@ pub async fn analyze(
     metrics::STILL_PROPAGATING_TRANSACTIONS.inc_by(num_still_propagating as u64);
     metrics::ONLY_HASH_TRANSACTIONS.inc_by(num_only_tx_hash as u64);
     metrics::REPLACED_TRANSACTIONS.inc_by(num_replaced_txs as u64);
+    metrics::CANCEL_TRANSACTIONS.inc_by(num_cancel_txs as u64);
     metrics::NOT_ENOUGH_SPACE_TRANSACTIONS.inc_by(
         *non_inclusion_reasons
             .get(&NonInclusionReason::NotEnoughSpace)
@@ -441,6 +468,7 @@ pub async fn analyze(
         num_txs_in_pool,
         num_only_tx_hash,
         num_replaced_txs,
+        num_cancel_txs,
         non_inclusion_reasons,
         duration,
     })

@@ -68,6 +68,11 @@ lazy_static! {
         "Analyzed transactions that got replaced by other transactions of the same sender"
     )
     .expect("can create metric");
+    pub static ref CANCEL_TRANSACTIONS: IntCounter = register_int_counter!(
+        "cancel_transactions",
+        "Transactions that are sent in order to cancel another transaction"
+    )
+    .expect("can create metric");
     pub static ref NOT_ENOUGH_SPACE_TRANSACTIONS: IntCounter = register_int_counter!(
         "not_enough_space_transactions",
         "Analyzed transactions for which there wasn't enough space in the block"
